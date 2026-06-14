@@ -490,7 +490,18 @@ const[competitors,setCompetitors]=useState(()=>stg('competitors')||[
 ]);
 const[addComp,setAddComp]=useState(false);
 const[newComp,setNewComp]=useState({name:'',ig:'',tt:''});
-const[failList,setFailList]=useState(()=>stg('tilt-fail-list')||[]);
+const[failList,setFailList]=useState(()=>{
+  const lastReset=stg('tilt-fail-reset-date');
+  const list=stg('tilt-fail-list')||[];
+  if(lastReset!==TODAY&&list.length>0){
+    const reset=list.map(f=>({...f,done:false}));
+    localStorage.setItem('tilt-fail-list',JSON.stringify(reset));
+    localStorage.setItem('tilt-fail-reset-date',TODAY);
+    return reset;
+  }
+  if(lastReset!==TODAY)localStorage.setItem('tilt-fail-reset-date',TODAY);
+  return list;
+});
 const[addFail,setAddFail]=useState(false);
 const[newFail,setNewFail]=useState('');
 const[dark,setDark]=useState(()=>stg('dark-mode')||false);
@@ -788,7 +799,7 @@ const removeProtocol=id=>{const u=protocols.filter(p=>p.id!==id);setProtocols(u)
 const saveGymWeek=w=>{setGymWeek(w);sts('gym-week',w);};
 const snapComp=(id)=>{const u=competitors.map(c=>{if(c.id!==id)return c;return{...c,snapshots:[{id:Date.now()+'',date:TODAY,ig:c.ig,tt:c.tt},...(c.snapshots||[])].slice(0,24)};});setCompetitors(u);sts('competitors',u);showN('Snapshot saved');};
 const updComp=(id,f,v)=>{const u=competitors.map(c=>c.id===id?{...c,[f]:+v||0}:c);setCompetitors(u);sts('competitors',u);};
-const doAddFail=()=>{if(!newFail.trim())return;const u=[...failList,{id:Date.now()+'',text:newFail.trim(),done:false}];setFailList(u);sts('tilt-fail-list',u);setNewFail('');setAddFail(false);};
+const doAddFail=()=>{if(!newFail.trim())return;const u=[...failList,{id:Date.now()+'',text:newFail.trim(),done:false}];setFailList(u);sts('tilt-fail-list',u);localStorage.setItem('tilt-fail-reset-date',TODAY);setNewFail('');setAddFail(false);};
 const togFail=(id)=>{const u=failList.map(f=>f.id===id?{...f,done:!f.done}:f);setFailList(u);sts('tilt-fail-list',u);};
 const addCompetitor=()=>{if(!newComp.name)return;const u=[...competitors,{id:Date.now()+'',name:newComp.name,ig:+newComp.ig||0,tt:+newComp.tt||0,snapshots:[]}];setCompetitors(u);sts('competitors',u);setNewComp({name:'',ig:'',tt:''});setAddComp(false);};
 const delComp=id=>{const u=competitors.filter(c=>c.id!==id);setCompetitors(u);sts('competitors',u);};
@@ -1141,7 +1152,7 @@ const tTilt=()=>el('div',null,
     el('div',{className:'ph'},PT('Ways to Fail'),
       Btn(addFail?'Cancel':'+ Add',()=>setAddFail(!addFail),'bg',{fontSize:10})
     ),
-    el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:10}},'Things that will kill the business. Tick these off as you actively avoid them — or as reminders when you slip.'),
+    el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:10}},'Ticks reset every day. Items stay until you delete them. Confirm daily that you avoided each one.'),
     addFail&&el('div',{style:{display:'flex',gap:8,marginBottom:12}},
       el('input',{className:'ipt',style:{flex:1},value:newFail,onChange:e=>setNewFail(e.target.value),onKeyDown:e=>{if(e.key==='Enter')doAddFail();},placeholder:'e.g. Stop posting consistently...', autoFocus:true}),
       Btn('Add',doAddFail,'bg',{padding:'6px 14px'})
