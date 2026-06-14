@@ -490,6 +490,9 @@ const[competitors,setCompetitors]=useState(()=>stg('competitors')||[
 ]);
 const[addComp,setAddComp]=useState(false);
 const[newComp,setNewComp]=useState({name:'',ig:'',tt:''});
+const[failList,setFailList]=useState(()=>stg('tilt-fail-list')||[]);
+const[addFail,setAddFail]=useState(false);
+const[newFail,setNewFail]=useState('');
 const[dark,setDark]=useState(()=>stg('dark-mode')||false);
 const[notes,setNotes]=useState(()=>stg('brain-dump')||[]);
 const[noteInput,setNoteInput]=useState('');
@@ -785,6 +788,8 @@ const removeProtocol=id=>{const u=protocols.filter(p=>p.id!==id);setProtocols(u)
 const saveGymWeek=w=>{setGymWeek(w);sts('gym-week',w);};
 const snapComp=(id)=>{const u=competitors.map(c=>{if(c.id!==id)return c;return{...c,snapshots:[{id:Date.now()+'',date:TODAY,ig:c.ig,tt:c.tt},...(c.snapshots||[])].slice(0,24)};});setCompetitors(u);sts('competitors',u);showN('Snapshot saved');};
 const updComp=(id,f,v)=>{const u=competitors.map(c=>c.id===id?{...c,[f]:+v||0}:c);setCompetitors(u);sts('competitors',u);};
+const doAddFail=()=>{if(!newFail.trim())return;const u=[...failList,{id:Date.now()+'',text:newFail.trim(),done:false}];setFailList(u);sts('tilt-fail-list',u);setNewFail('');setAddFail(false);};
+const togFail=(id)=>{const u=failList.map(f=>f.id===id?{...f,done:!f.done}:f);setFailList(u);sts('tilt-fail-list',u);};
 const addCompetitor=()=>{if(!newComp.name)return;const u=[...competitors,{id:Date.now()+'',name:newComp.name,ig:+newComp.ig||0,tt:+newComp.tt||0,snapshots:[]}];setCompetitors(u);sts('competitors',u);setNewComp({name:'',ig:'',tt:''});setAddComp(false);};
 const delComp=id=>{const u=competitors.filter(c=>c.id!==id);setCompetitors(u);sts('competitors',u);};
 
@@ -1131,6 +1136,28 @@ const tTilt=()=>el('div',null,
       el('div',{style:{flex:1,minWidth:110}},Lbl('TikTok'),el('input',{className:'ipt',type:'number',style:{fontSize:18,fontWeight:700,color:'var(--go)'},value:met.tt||'',onChange:e=>saveMet({tt:+e.target.value}),placeholder:'0'}),PB(Math.min(100,(met.tt/1000)*100),'var(--go)'),el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:2}},(met.tt/1000*100).toFixed(1)+'% to 1K')),
       el('div',{className:'crd',style:{textAlign:'center',padding:'10px 16px'}},Lbl('Posts / Wk'),el('input',{className:'ipt',type:'number',style:{fontSize:22,fontWeight:700,textAlign:'center',border:'none',padding:'0',width:50,outline:'none'},value:met.posts||'',onChange:e=>saveMet({posts:+e.target.value}),placeholder:'0'}))
     )
+  ),
+  el('div',{className:'card'},
+    el('div',{className:'ph'},PT('Ways to Fail'),
+      Btn(addFail?'Cancel':'+ Add',()=>setAddFail(!addFail),'bg',{fontSize:10})
+    ),
+    el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:10}},'Things that will kill the business. Tick these off as you actively avoid them — or as reminders when you slip.'),
+    addFail&&el('div',{style:{display:'flex',gap:8,marginBottom:12}},
+      el('input',{className:'ipt',style:{flex:1},value:newFail,onChange:e=>setNewFail(e.target.value),onKeyDown:e=>{if(e.key==='Enter')doAddFail();},placeholder:'e.g. Stop posting consistently...', autoFocus:true}),
+      Btn('Add',doAddFail,'bg',{padding:'6px 14px'})
+    ),
+    failList.length===0&&!addFail&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 10px'}},
+      el('div',{style:{fontSize:28,marginBottom:6}},'💀'),
+      el('div',null,'Add the things that would kill TILT — and make sure none of them happen.')
+    ),
+    ...failList.map(f=>el('div',{key:f.id,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',background:f.done?'#F0FDF4':'#FFF1F2',border:'1px solid '+(f.done?'#A7F3D0':'#FECDD3'),borderRadius:8,marginBottom:6,transition:'background .2s'}},
+      el('div',{onClick:()=>togFail(f.id),style:{width:18,height:18,borderRadius:4,border:'2px solid '+(f.done?'var(--gn)':'var(--rd2)'),background:f.done?'var(--gn)':'transparent',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}},
+        f.done&&el('span',{style:{color:'#fff',fontSize:11,fontWeight:700,lineHeight:1}},'✓')
+      ),
+      el('div',{style:{flex:1,fontSize:13,fontWeight:500,color:f.done?'var(--t3)':'var(--tx)',textDecoration:f.done?'line-through':'none'}},f.text),
+      f.done&&el('span',{style:{fontSize:9,fontWeight:700,color:'var(--gn)',flexShrink:0}},'AVOIDED'),
+      Xb(()=>{const u=failList.filter(x=>x.id!==f.id);setFailList(u);sts('tilt-fail-list',u);})
+    ))
   ),
   el('div',{className:'card'},
     el('div',{className:'ph'},PT('Live Stock'),
