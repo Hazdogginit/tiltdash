@@ -3101,13 +3101,13 @@ const tStockists=()=>{
 };
 // ─── CONTENT CALENDAR (Feature 7) ───────────────────────────────
 const CC_STATUS_COL={idea:['#EEF2FF','#3730A3'],scripted:['#FEF0C7','#92400E'],filmed:['#E0F2FE','#0369A1'],scheduled:['#EDE9FE','#6941C6'],posted:['#DCFAE6','#027A48']};
+const CC_STATUS_DOT={idea:'#94A3B8',scripted:'#F59E0B',filmed:'#3B82F6',scheduled:'#8B5CF6',posted:'#22C55E'};
 const tContentCal=()=>{
   const [yr,mo]=calMonth.split('-').map(Number);
   const firstDay=new Date(yr,mo-1,1).getDay();
   const daysInMo=new Date(yr,mo,0).getDate();
   const prevMonth=()=>{const d=new Date(yr,mo-2,1);setCalMonth(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));setCalDay(null);};
-  const nextMonth=()=>{const d=new Date(yr,mo,1);const ns=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');if(ns<=TODAY.slice(0,7))return;setCalMonth(ns);setCalDay(null);};
-  const canNext=calMonth<TODAY.slice(0,7)||true; // allow future months
+  const nextMonth=()=>{const d=new Date(yr,mo,1);const ns=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');if(ns>TODAY.slice(0,7))return;setCalMonth(ns);setCalDay(null);};
   const moLabel=new Date(yr,mo-1,1).toLocaleDateString('en-AU',{month:'long',year:'numeric'});
   const getDay=ds=>contentCal.filter(c=>c.date===ds);
   const posted=contentCal.filter(c=>c.status==='posted'&&c.perf);
@@ -3173,7 +3173,11 @@ const tContentCal=()=>{
           const isSel=calDay===ds;
           return el('div',{key:ds,onClick:()=>setCalDay(isSel?null:ds),style:{minHeight:64,border:'2px solid '+(isSel?'var(--go)':isToday?'#FDE68A':'var(--br)'),borderRadius:8,padding:'4px 5px',cursor:'pointer',background:isSel?'#FFFBEB':'var(--bg)',position:'relative',transition:'border-color .15s'}},
             el('div',{style:{fontSize:10,fontWeight:700,color:isToday?'var(--go)':'var(--t3)',marginBottom:3}},day),
-            ...items.slice(0,3).map(it=>el('div',{key:it.id,style:{fontSize:8,fontWeight:600,padding:'1px 4px',borderRadius:4,marginBottom:1,background:it.platform==='TikTok'?'#111':'#E1306C',color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},it.title)),
+            ...items.slice(0,3).map(it=>el('div',{key:it.id,style:{display:'flex',alignItems:'center',gap:2,fontSize:8,fontWeight:600,padding:'1px 4px',borderRadius:4,marginBottom:1,background:it.platform==='TikTok'?'#111':'#E1306C',color:'#fff',overflow:'hidden'}},
+              el('span',{style:{flexShrink:0}},it.platform==='TikTok'?'TT':'IG'),
+              el('span',{style:{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}},it.title),
+              el('span',{style:{flexShrink:0,width:5,height:5,borderRadius:'50%',background:CC_STATUS_DOT[it.status]||'#94A3B8',display:'inline-block',marginLeft:2}})
+            )),
             items.length>3&&el('div',{style:{fontSize:8,color:'var(--t3)'}},'+' +(items.length-3)+' more')
           );
         })
