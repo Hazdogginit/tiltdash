@@ -167,6 +167,8 @@ const{useState,useEffect,useRef,useMemo}=React;
 const el=React.createElement;
 const TODAY=new Date().toISOString().split('T')[0];
 const DOW=new Date().getDay();
+// Monday-anchored ISO week start date — used as the weekly schedule key
+const WEEK_KEY=(()=>{const d=new Date();const day=d.getDay();const diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d.toISOString().split('T')[0];})();
 const DLONG=new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const DAYYR=Math.ceil((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
 const DL=Math.max(0,Math.ceil((new Date('2026-06-30')-new Date())/86400000));
@@ -420,7 +422,7 @@ const[addR,setAddR]=useState(false);
 const[newR,setNewR]=useState({date:TODAY,dist:'',time:'',type:'easy',notes:''});
 const[mSetup,setMSetup]=useState(false);
 const[mcd,setMcd]=useState({});
-const[wp,setWp]=useState(()=>stg('week-plan')||{theme:'',p1:'',p2:'',p3:'',blocks:{}});
+const[wp,setWp]=useState(()=>stg('week-plan-'+WEEK_KEY)||{theme:'',p1:'',p2:'',p3:'',blocks:{}});
 const[ps,setPs]=useState(25*60);
 const[pActive,setPActive]=useState(false);
 const[pMode,setPMode]=useState('work');
@@ -592,7 +594,7 @@ const hydrate=(d)=>{
   if(g('stock-log'))setSlog(g('stock-log'));
   if(g('mara-cfg'))setMCfg(g('mara-cfg'));
   if(g('run-log'))setRlog(g('run-log'));
-  if(g('week-plan'))setWp(g('week-plan'));
+  if(g('week-plan-'+WEEK_KEY))setWp(g('week-plan-'+WEEK_KEY));
   if(g('books'))setBooks(g('books'));
   if(g('lang-mins'))setLm(g('lang-mins'));
   if(g('contacts'))setContacts(g('contacts'));
@@ -734,7 +736,7 @@ const doAddFin=()=>{if(!newF.amount)return;const u=[...fin,{id:Date.now()+'',dat
 const doStock=dir=>{if(!newS.cans&&!newS.slabs)return;const u=[{id:Date.now()+'',date:TODAY,dir,...newS,cans:+newS.cans||0,slabs:+newS.slabs||0},...slog];setSlog(u);sts('stock-log',u);showN(dir==='in'?'Stock received':'Usage logged');setAddS(null);setNewS({cans:'',slabs:'',cat:dir==='in'?'purchase':'marketing',note:''});};
 const saveMCfg=()=>{const u={rd:mcd.rd||mCfg.rd,rn:mcd.rn||mCfg.rn,km:+mcd.km||mCfg.km};setMCfg(u);sts('mara-cfg',u);if(mcd.sw||mcd.gw){const b={sw:+mcd.sw||base.sw,gw:+mcd.gw||base.gw};setBase(b);sts('fit-base',b);}setMSetup(false);showN('Training setup saved');};
 const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');};
-const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan',u);};
+const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
 const doAddBook=()=>{if(!newBk.title)return;const u=[...books,{id:Date.now()+'',startDate:TODAY,...newBk}];setBooks(u);sts('books',u);setNewBk({title:'',author:'',status:'reading',notes:''});setAddBk(false);};
 const updBook=(id,f,v)=>{const u=books.map(b=>b.id===id?{...b,[f]:v}:b);setBooks(u);sts('books',u);};
 const addLm=m=>{const u={...lm,[TODAY]:(lm[TODAY]||0)+m};setLm(u);sts('lang-mins',u);showN('+'+m+' min language');};
@@ -1961,11 +1963,17 @@ const tPlan=()=>el('div',null,
     )
   ),
   el('div',{className:'card'},
-    PT('Week Schedule'),
+    el('div',{className:'ph'},
+      PT('Week Schedule'),
+      el('div',{style:{fontSize:11,color:'var(--t3)'}},
+        'w/c '+new Date(WEEK_KEY+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
+        +' · resets Mon'
+      )
+    ),
     el('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}},
       DN.map((d,i)=>el('div',{key:i},
         el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1,color:i===DOW?'var(--go)':'var(--t3)',textTransform:'uppercase',textAlign:'center',marginBottom:4}},d.slice(0,3)),
-        el('textarea',{style:{width:'100%',height:80,background:i===DOW?'#FFFBEB':'var(--bg)',border:'1px solid '+(i===DOW?'#F0E0B0':'var(--br)'),borderRadius:6,fontSize:10,padding:'5px',resize:'none',outline:'none',color:'var(--tx)',lineHeight:1.5},value:wp.blocks?.[i]||'',onChange:e=>{const b={...wp.blocks,[i]:e.target.value};setWp(p=>({...p,blocks:b}));sts('week-plan',{...wp,blocks:b});}})
+        el('textarea',{style:{width:'100%',height:80,background:i===DOW?'#FFFBEB':'var(--bg)',border:'1px solid '+(i===DOW?'#F0E0B0':'var(--br)'),borderRadius:6,fontSize:10,padding:'5px',resize:'none',outline:'none',color:'var(--tx)',lineHeight:1.5},value:wp.blocks?.[i]||'',onChange:e=>{const b={...wp.blocks,[i]:e.target.value};const u={...wp,blocks:b};setWp(u);sts('week-plan-'+WEEK_KEY,u);}})
       ))
     )
   )
