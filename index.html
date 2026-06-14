@@ -167,8 +167,8 @@ const{useState,useEffect,useRef,useMemo}=React;
 const el=React.createElement;
 const TODAY=new Date().toISOString().split('T')[0];
 const DOW=new Date().getDay();
-// Monday-anchored ISO week start date — used as the weekly schedule key
-const WEEK_KEY=(()=>{const d=new Date();const day=d.getDay();const diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d.toISOString().split('T')[0];})();
+// Sunday-anchored week start date — used as the weekly schedule key
+const WEEK_KEY=(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().split('T')[0];})();
 const DLONG=new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const DAYYR=Math.ceil((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
 const DL=Math.max(0,Math.ceil((new Date('2026-06-30')-new Date())/86400000));
@@ -1967,7 +1967,7 @@ const tPlan=()=>el('div',null,
       PT('Week Schedule'),
       el('div',{style:{fontSize:11,color:'var(--t3)'}},
         'w/c '+new Date(WEEK_KEY+'T12:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
-        +' · resets Mon'
+        +' · resets Sun'
       )
     ),
     el('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}},
