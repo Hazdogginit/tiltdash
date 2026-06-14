@@ -464,6 +464,15 @@ const[mood,setMood]=useState(()=>stg('mood-'+TODAY)||{mood:0,energy:0,word:''});
 const[pbud,setPbud]=useState(()=>stg('personal-budget')||{income:'',items:[]});
 const[addBI,setAddBI]=useState(false);
 const[newBI,setNewBI]=useState({name:'',amount:'',cat:'Housing',billing:'monthly'});
+// Budget transactions — monthly rolling log
+const BUD_MONTH=TODAY.slice(0,7);
+const[budTx,setBudTx]=useState(()=>stg('budget-tx-'+BUD_MONTH)||[]);
+const[addTx,setAddTx]=useState(false);
+const[newTx,setNewTx]=useState({amount:'',cat:'Food',note:'',date:TODAY});
+// Shopify
+const[shopifyData,setShopifyData]=useState(null);
+const[shopifyLoading,setShopifyLoading]=useState(false);
+const[shopifyError,setShopifyError]=useState(null);
 // Subscriptions
 const[subs,setSubs]=useState(()=>stg('subscriptions')||[]);
 const[addSub,setAddSub]=useState(false);
@@ -611,6 +620,7 @@ const hydrate=(d)=>{
   if(g('reflect-log'))setReflectLog(g('reflect-log'));
   if(g('hm-done'))setHmDone(g('hm-done'));
   if(g('pomo-sessions'))setPSessions(g('pomo-sessions'));
+  if(g('budget-tx-'+BUD_MONTH))setBudTx(g('budget-tx-'+BUD_MONTH));
   if(g('pomo-work-mins'))setPWorkMins(g('pomo-work-mins'));
   if(g('pomo-break-mins'))setPBreakMins(g('pomo-break-mins'));
   if(g('protocols'))setProtocols(g('protocols'));
@@ -755,6 +765,9 @@ const doAddIdea=()=>{if(!newIdea.title)return;const u=[{id:Date.now()+'',created
 const updIdea=(id,f,v)=>{const u=ideas.map(x=>x.id===id?{...x,[f]:v}:x);setIdeas(u);sts('content-ideas',u);};
 // Personal budget
 const doAddBI=()=>{if(!newBI.name||!newBI.amount)return;const u={...pbud,items:[...(pbud.items||[]),{id:Date.now()+'',name:newBI.name,amount:+newBI.amount,cat:newBI.cat,billing:newBI.billing}]};setPbud(u);sts('personal-budget',u);setNewBI({name:'',amount:'',cat:'Housing',billing:'monthly'});setAddBI(false);};
+const doAddTx=()=>{if(!newTx.amount)return;const u=[{id:Date.now()+'',date:newTx.date||TODAY,amount:+newTx.amount,cat:newTx.cat,note:newTx.note},...budTx];setBudTx(u);sts('budget-tx-'+BUD_MONTH,u);setNewTx({amount:'',cat:'Food',note:'',date:TODAY});setAddTx(false);showN('Spend logged: '+FMT(newTx.amount));};
+const fetchShopify=async(resource='orders')=>{setShopifyLoading(true);setShopifyError(null);try{const r=await fetch('/.netlify/functions/shopify?resource='+resource);const d=await r.json();if(d.error)throw new Error(d.error);setShopifyData(d);showN('Shopify synced');}catch(e){setShopifyError(e.message);}finally{setShopifyLoading(false);};};
+const importShopifyOrders=()=>{if(!shopifyData?.orders)return;const existing=new Set(fin.map(f=>f.shopifyId).filter(Boolean));const toAdd=shopifyData.orders.filter(o=>!existing.has(o.id+'')&&o.financial_status==='paid').map(o=>({id:Date.now()+''+o.id,shopifyId:o.id+'',date:o.created_at?.split('T')[0]||TODAY,type:'revenue',amount:+o.total_price||0,cat:'Sales',note:'Shopify #'+o.name}));if(!toAdd.length){showN('No new paid orders to import');return;}const u=[...fin,...toAdd];setFin(u);sts('tilt-fin',u);showN('Imported '+toAdd.length+' orders');};
 // Subscriptions
 const doAddSub=()=>{if(!newSub.name||!newSub.amount)return;const u=[...subs,{id:Date.now()+'',name:newSub.name,amount:+newSub.amount,billing:newSub.billing,cat:newSub.cat,active:true}];setSubs(u);sts('subscriptions',u);setNewSub({name:'',amount:'',billing:'monthly',cat:'Entertainment'});setAddSub(false);};
 const togSub=id=>{const u=subs.map(s=>s.id===id?{...s,active:!s.active}:s);setSubs(u);sts('subscriptions',u);};
@@ -1271,6 +1284,52 @@ const tTilt=()=>el('div',null,
       );
     }),
     el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:8,paddingTop:8,borderTop:'1px solid var(--br)'}},'Edit follower counts inline. Hit 📸 to save a snapshot — the delta columns show change since last snapshot.')
+  ),
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Shopify Orders'),
+      el('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+        shopifyError&&el('span',{style:{fontSize:10,color:'var(--rd2)',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},shopifyError),
+        shopifyData?.orders&&el('span',{style:{fontSize:10,color:'var(--t3)'}},shopifyData.orders.length+' orders loaded'),
+        Btn(shopifyLoading?'Syncing…':'↻ Sync',()=>fetchShopify('orders'),'bg',{fontSize:10,opacity:shopifyLoading?0.6:1,pointerEvents:shopifyLoading?'none':'auto'}),
+        shopifyData?.orders&&Btn('Import paid → Finance',importShopifyOrders,'',{fontSize:10})
+      )
+    ),
+    !shopifyData&&!shopifyLoading&&!shopifyError&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'20px 10px'}},
+      el('div',{style:{fontSize:32,marginBottom:8}},'🛍'),
+      el('div',{style:{fontWeight:600,marginBottom:4}},'Connect your Shopify store'),
+      el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:12}},'Add SHOPIFY_SHOP_DOMAIN and SHOPIFY_ACCESS_TOKEN to Netlify environment variables, then hit Sync.'),
+      Btn('↻ Sync Now',()=>fetchShopify('orders'),'bg')
+    ),
+    shopifyLoading&&el('div',{style:{textAlign:'center',padding:20,color:'var(--t3)',fontSize:13}},'Syncing with Shopify…'),
+    shopifyData?.orders&&el('div',null,
+      el('div',{style:{display:'flex',gap:10,marginBottom:12,flexWrap:'wrap'}},
+        el('div',{className:'crd',style:{flex:1,minWidth:90,textAlign:'center'}},
+          el('div',{style:{fontSize:20,fontWeight:700,color:'var(--gn)'}},shopifyData.orders.filter(o=>o.financial_status==='paid').length),
+          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:2}},'PAID ORDERS')
+        ),
+        el('div',{className:'crd',style:{flex:1,minWidth:90,textAlign:'center'}},
+          el('div',{style:{fontSize:20,fontWeight:700,color:'var(--go)'}},shopifyData.orders.filter(o=>o.financial_status==='pending').length),
+          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:2}},'PENDING')
+        ),
+        el('div',{className:'crd',style:{flex:1,minWidth:90,textAlign:'center'}},
+          el('div',{style:{fontSize:20,fontWeight:700,color:'var(--rd2)'}},FMT(shopifyData.orders.filter(o=>o.financial_status==='paid').reduce((s,o)=>s+(+o.total_price||0),0))),
+          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:2}},'TOTAL REVENUE')
+        )
+      ),
+      el('div',{className:'tbl-x'},
+        el('div',{style:{display:'grid',gridTemplateColumns:'80px 60px 1fr 80px auto',padding:'5px 4px',fontSize:9,fontWeight:700,letterSpacing:1.5,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:340}},
+          el('div',null,'DATE'),el('div',null,'ORDER'),el('div',null,'CUSTOMER'),el('div',null,'TOTAL'),el('div',null,'STATUS')
+        ),
+        ...shopifyData.orders.slice(0,15).map(o=>el('div',{key:o.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'80px 60px 1fr 80px auto',alignItems:'center',borderRadius:6,minWidth:340}},
+          el('span',{style:{fontSize:11,color:'var(--t3)'}},o.created_at?.split('T')[0]||''),
+          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--go)'}},o.name),
+          el('span',{style:{fontSize:12,color:'var(--tx)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},(o.customer?.first_name||'')+' '+(o.customer?.last_name||'')||'Guest'),
+          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--tx)'}},FMT(o.total_price||0)),
+          el('span',{style:{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:99,background:o.financial_status==='paid'?'#D1FAE5':'#FEE2E2',color:o.financial_status==='paid'?'#065F46':'#991B1B'}},o.financial_status)
+        ))
+      )
+    )
   )
 );
 
@@ -1755,27 +1814,136 @@ const tMoney=()=>{try{return el('div',null,
         !calcResult&&debts.length>0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 0'}},'Enter your fortnightly budget above to see your payoff plan.')
       )
     ),
-    finTab==='budget'&&el('div',null,
-      el('div',{style:{marginBottom:14}},
-        Lbl('Monthly take-home income ($)'),
-        el('input',{className:'ipt',type:'number',style:{fontSize:22,fontWeight:700},value:pbud.income||'',onChange:e=>{const u={...pbud,income:e.target.value};setPbud(u);sts('personal-budget',u);},placeholder:'e.g. 4500'})
-      ),
-      el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}},
-        ...[['Income',FMT(+pbud.income||0),'var(--gn)'],['Expenses',FMT(totalBudgetExp),'var(--rd2)'],['Surplus / Deficit',FMT(budgetSurplus),budgetSurplus>=0?'var(--gn)':'var(--rd2)']].map(([l,v,c])=>el('div',{key:l,className:'crd',style:{textAlign:'center'}},el('div',{style:{fontSize:17,fontWeight:700,color:c,marginBottom:3}},v),el('div',{style:{fontSize:9,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)'}},l)))
-      ),
-      addBI?el('div',{style:{background:'#FFFDF5',border:'1px solid #F0E0B0',borderRadius:8,padding:14,marginBottom:12}},
-        G2([
-          FR('Expense name',el('input',{className:'ipt',value:newBI.name,onChange:e=>setNewBI(p=>({...p,name:e.target.value})),placeholder:'e.g. Rent, Netflix, Gym'})),
-          FR('Amount ($)',el('input',{className:'ipt',type:'number',value:newBI.amount,onChange:e=>setNewBI(p=>({...p,amount:e.target.value}))})),
-          FR('Category',el('select',{className:'ipt',value:newBI.cat,onChange:e=>setNewBI(p=>({...p,cat:e.target.value}))},['Housing','Food','Transport','Health','Subscriptions','Entertainment','Savings','Other'].map(c=>el('option',{key:c,value:c},c)))),
-          FR('Billing cycle',el('select',{className:'ipt',value:newBI.billing,onChange:e=>setNewBI(p=>({...p,billing:e.target.value}))},el('option',{value:'monthly'},'Monthly'),el('option',{value:'fortnightly'},'Fortnightly'),el('option',{value:'weekly'},'Weekly'),el('option',{value:'annual'},'Annual'))),
-          el('div',{style:{display:'flex',alignItems:'flex-end'}},Btn('Add',doAddBI,'bg',{width:'100%',padding:'9px'})),
-          el('div',{style:{display:'flex',alignItems:'flex-end'}},Btn('Cancel',()=>setAddBI(false),'',{width:'100%',padding:'9px'}))
-        ])
-      ):Btn('+ Add Expense',()=>setAddBI(true),'bg',{marginBottom:10}),
-      (pbud.items||[]).length===0&&!addBI&&el('div',{style:{color:'var(--t3)',fontSize:13,textAlign:'center',padding:'12px'}},'Add your regular expenses to see your personal budget breakdown'),
-      ...(pbud.items||[]).map(i=>{const mo=+(i.amount||0)*(i.billing==='weekly'?52/12:i.billing==='fortnightly'?26/12:i.billing==='annual'?1/12:1);return el('div',{key:i.id,className:'fin-row'},el('span',{style:{flex:1,fontSize:13,fontWeight:500}},i.name),el('span',{style:{fontSize:11,color:'var(--t3)',marginRight:6}},i.cat),el('span',{style:{fontSize:11,color:'var(--t3)',marginRight:8}},i.billing),el('span',{style:{fontSize:14,fontWeight:700,color:'var(--rd2)'}},FMT(mo)+'/mo'),Xb(()=>{const u={...pbud,items:(pbud.items||[]).filter(x=>x.id!==i.id)};setPbud(u);sts('personal-budget',u);}));})
-    ),
+    finTab==='budget'&&(()=>{
+      const BUD_CATS=['Housing','Food','Transport','Health','Subscriptions','Entertainment','Savings','Personal','Other'];
+      const toMo=i=>(+(i.amount||0))*(i.billing==='weekly'?52/12:i.billing==='fortnightly'?26/12:i.billing==='annual'?1/12:1);
+      // Actual spending this month by category
+      const actualByCat=budTx.reduce((acc,t)=>{acc[t.cat]=(acc[t.cat]||0)+(+t.amount||0);return acc;},{});
+      const totalActual=Object.values(actualByCat).reduce((s,v)=>s+v,0);
+      // Budget allocation by category (sum of fixed items)
+      const budByCat=(pbud.items||[]).reduce((acc,i)=>{acc[i.cat]=(acc[i.cat]||0)+toMo(i);return acc;},{});
+      const income=+pbud.income||0;
+      const remaining=income-totalActual;
+      const daysInMonth=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
+      const dayOfMonth=new Date().getDate();
+      const dailyRate=income>0?income/daysInMonth:0;
+      const projectedSpend=dailyRate>0?totalActual/(dayOfMonth/daysInMonth):0;
+
+      return el('div',null,
+        // ── Summary strip ───────────────────────────────────────
+        el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}},
+          ...[
+            ['Take-Home',FMT(income),'var(--gn)','Monthly income'],
+            ['Spent',FMT(totalActual),totalActual>income?'var(--rd2)':'var(--go)',BUD_MONTH+' so far'],
+            ['Remaining',FMT(remaining),remaining>=0?'var(--gn)':'var(--rd2)',remaining>=0?'You have this left':'Over budget!'],
+            ['Projected',FMT(Math.round(projectedSpend)),'var(--t2)','At current rate'],
+          ].map(([l,v,c,s])=>el('div',{key:l,className:'crd',style:{textAlign:'center'}},
+            el('div',{style:{fontSize:18,fontWeight:700,color:c,letterSpacing:-.5,marginBottom:2}},v),
+            el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},l),
+            el('div',{style:{fontSize:10,color:'var(--t3)'}},s)
+          ))
+        ),
+
+        // ── Month progress ──────────────────────────────────────
+        el('div',{style:{marginBottom:16}},
+          el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--t3)',marginBottom:4}},
+            el('span',null,'Day '+dayOfMonth+' of '+daysInMonth),
+            el('span',null,Math.round(dayOfMonth/daysInMonth*100)+'% through month')
+          ),
+          el('div',{style:{background:'var(--br)',borderRadius:99,height:6,overflow:'hidden',position:'relative'}},
+            el('div',{style:{height:'100%',background:'var(--bl2)',width:(dayOfMonth/daysInMonth*100)+'%',borderRadius:99,opacity:.4}}),
+            income>0&&el('div',{style:{position:'absolute',top:0,left:0,height:'100%',background:totalActual>income?'var(--rd2)':'var(--go)',width:Math.min(100,totalActual/income*100)+'%',borderRadius:99,transition:'width .4s'}})
+          ),
+          el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--t3)',marginTop:3}},
+            el('span',{style:{color:'var(--go)',fontWeight:600}},FMT(totalActual)+' spent'),
+            income>0&&el('span',null,Math.round(totalActual/income*100)+'% of income')
+          )
+        ),
+
+        // ── Log spend + Income input ─────────────────────────────
+        el('div',{style:{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}},
+          el('div',{style:{flex:1,minWidth:120}},
+            Lbl('Monthly take-home ($)'),
+            el('input',{className:'ipt',type:'number',value:pbud.income||'',onChange:e=>{const u={...pbud,income:e.target.value};setPbud(u);sts('personal-budget',u);},placeholder:'4500'})
+          ),
+          el('div',{style:{display:'flex',alignItems:'flex-end',gap:6}},
+            Btn(addTx?'Cancel':'+ Log Spend',()=>setAddTx(!addTx),'bg'),
+            Btn(addBI?'Cancel':'+ Fixed Expense',()=>setAddBI(!addBI),'')
+          )
+        ),
+
+        addTx&&el('div',{style:{background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:10,padding:14,marginBottom:12}},
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--gn)',marginBottom:10}},'Log actual spend'),
+          G2([
+            FR('Amount ($)',el('input',{className:'ipt',type:'number',value:newTx.amount,onChange:e=>setNewTx(p=>({...p,amount:e.target.value})),placeholder:'0.00',autoFocus:true})),
+            FR('Category',el('select',{className:'ipt',value:newTx.cat,onChange:e=>setNewTx(p=>({...p,cat:e.target.value}))},BUD_CATS.map(c=>el('option',{key:c,value:c},c)))),
+            FR('Note',el('input',{className:'ipt',value:newTx.note,onChange:e=>setNewTx(p=>({...p,note:e.target.value})),placeholder:'Coffee, Woolies, Petrol...'})),
+            FR('Date',el('input',{className:'ipt',type:'date',value:newTx.date,onChange:e=>setNewTx(p=>({...p,date:e.target.value}))})),
+            el('div',{style:{display:'flex',alignItems:'flex-end',gridColumn:'1/-1'}},Btn('Save',doAddTx,'bg',{width:'100%',padding:'9px'}))
+          ])
+        ),
+
+        addBI&&el('div',{style:{background:'#FFFDF5',border:'1px solid #F0E0B0',borderRadius:10,padding:14,marginBottom:12}},
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--go)',marginBottom:10}},'Add fixed monthly expense'),
+          G2([
+            FR('Name',el('input',{className:'ipt',value:newBI.name,onChange:e=>setNewBI(p=>({...p,name:e.target.value})),placeholder:'Rent, Netflix, Gym...'})),
+            FR('Amount ($)',el('input',{className:'ipt',type:'number',value:newBI.amount,onChange:e=>setNewBI(p=>({...p,amount:e.target.value}))})),
+            FR('Category',el('select',{className:'ipt',value:newBI.cat,onChange:e=>setNewBI(p=>({...p,cat:e.target.value}))},BUD_CATS.map(c=>el('option',{key:c,value:c},c)))),
+            FR('Billing',el('select',{className:'ipt',value:newBI.billing,onChange:e=>setNewBI(p=>({...p,billing:e.target.value}))},el('option',{value:'monthly'},'Monthly'),el('option',{value:'fortnightly'},'Fortnightly'),el('option',{value:'weekly'},'Weekly'),el('option',{value:'annual'},'Annual'))),
+            el('div',{style:{display:'flex',alignItems:'flex-end'}},Btn('Add',doAddBI,'bg',{width:'100%',padding:'9px'})),
+            el('div',{style:{display:'flex',alignItems:'flex-end'}},Btn('Cancel',()=>setAddBI(false),'',{width:'100%',padding:'9px'}))
+          ])
+        ),
+
+        // ── Category breakdown ───────────────────────────────────
+        el('div',{style:{marginBottom:16}},
+          el('div',{className:'ph',style:{marginBottom:8}},PT('Spending by Category'),el('span',{style:{fontSize:11,color:'var(--t3)'}},'vs budget')),
+          ...BUD_CATS.filter(cat=>(budByCat[cat]||0)+(actualByCat[cat]||0)>0).map(cat=>{
+            const budget=budByCat[cat]||0;
+            const actual=actualByCat[cat]||0;
+            const over=budget>0&&actual>budget;
+            const pct=budget>0?Math.min(120,actual/budget*100):0;
+            return el('div',{key:cat,style:{marginBottom:10}},
+              el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4}},
+                el('span',{style:{fontSize:13,fontWeight:500,color:'var(--tx)'}},cat),
+                el('span',{style:{fontSize:12}},
+                  el('span',{style:{fontWeight:700,color:over?'var(--rd2)':'var(--tx)'}},FMT(actual)),
+                  budget>0&&el('span',{style:{color:'var(--t3)',fontSize:11}},' / '+FMT(budget)+' budget')
+                )
+              ),
+              el('div',{style:{background:'var(--br)',borderRadius:99,height:8,overflow:'hidden'}},
+                el('div',{style:{height:'100%',borderRadius:99,background:over?'var(--rd2)':pct>75?'var(--go)':'var(--gn2)',width:pct+'%',transition:'width .4s'}})
+              )
+            );
+          }),
+          BUD_CATS.every(cat=>!(budByCat[cat]||0)&&!(actualByCat[cat]||0))&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px'}},'Add fixed expenses above, then log spending to see your breakdown')
+        ),
+
+        // ── Recent transactions ──────────────────────────────────
+        budTx.length>0&&el('div',null,
+          el('div',{className:'ph',style:{marginBottom:6}},PT('This Month\'s Spending'),Btn('Clear all',()=>{setBudTx([]);sts('budget-tx-'+BUD_MONTH,[]);},'')),
+          ...budTx.slice(0,20).map(t=>el('div',{key:t.id,className:'fin-row'},
+            el('span',{style:{fontSize:11,color:'var(--t3)',width:80,flexShrink:0}},t.date),
+            el('span',{style:{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:99,background:'#FEF3C7',color:'#92400E',flexShrink:0}},t.cat),
+            el('span',{style:{flex:1,fontSize:13,marginLeft:8,color:'var(--tx)'}},t.note||'—'),
+            el('span',{style:{fontSize:14,fontWeight:700,color:'var(--rd2)',flexShrink:0}},FMT(t.amount)),
+            Xb(()=>{const u=budTx.filter(x=>x.id!==t.id);setBudTx(u);sts('budget-tx-'+BUD_MONTH,u);})
+          ))
+        ),
+
+        // ── Fixed expenses list ──────────────────────────────────
+        (pbud.items||[]).length>0&&el('div',{style:{marginTop:8}},
+          el('div',{className:'pt',style:{marginBottom:8}},'Fixed Expenses'),
+          ...(pbud.items||[]).map(i=>{const mo=toMo(i);return el('div',{key:i.id,className:'fin-row'},
+            el('span',{style:{flex:1,fontSize:13,fontWeight:500}},i.name),
+            el('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:99,background:'var(--cd)',color:'var(--t3)',marginRight:6}},i.cat),
+            el('span',{style:{fontSize:11,color:'var(--t3)',marginRight:8}},i.billing),
+            el('span',{style:{fontSize:14,fontWeight:700,color:'var(--rd2)'}},FMT(mo)+'/mo'),
+            Xb(()=>{const u={...pbud,items:(pbud.items||[]).filter(x=>x.id!==i.id)};setPbud(u);sts('personal-budget',u);})
+          );})
+        )
+      );
+    })(),
     finTab==='subs'&&el('div',null,
       el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:14}},
         el('div',null,Lbl('Total monthly'),el('div',{style:{fontSize:26,fontWeight:700,color:'var(--rd2)'}},FMT(monthlySubCost))),
