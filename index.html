@@ -895,6 +895,7 @@ const outInv=inv.filter(i=>i.status!=='paid').reduce((s,i)=>s+(+i.amount||0),0);
 const thisM=TODAY.slice(0,7);
 const mRev=fin.filter(e=>e.type==='revenue'&&e.date?.startsWith(thisM)).reduce((s,e)=>s+(+e.amount||0),0);
 const mExp=fin.filter(e=>e.type==='expense'&&e.date?.startsWith(thisM)).reduce((s,e)=>s+(+e.amount||0),0);
+const monthRev=mRev;
 const curStock=stockBal(slog);
 const curSlabs=Math.floor(curStock/24);
 const mktgUsed=slog.filter(e=>e.dir==='out').reduce((s,e)=>s+(+e.cans||0)+(+e.slabs||0)*24,0);
