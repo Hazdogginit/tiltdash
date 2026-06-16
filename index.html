@@ -3456,7 +3456,8 @@ return el('div',{className:'layout'},
   )
 );}
 
-ReactDOM.createRoot(document.getElementById('root')).render(el(App));
+class ErrBoundary extends React.Component{constructor(p){super(p);this.state={err:null};}static getDerivedStateFromError(e){return{err:e};}render(){if(this.state.err)return React.createElement('div',{style:{padding:32,fontFamily:'monospace',color:'#c00',background:'#fff',margin:20,borderRadius:12,whiteSpace:'pre-wrap',fontSize:13}},'🚨 App crashed — check this error:\n\n'+this.state.err.message+'\n\n'+this.state.err.stack);return this.props.children;}}
+ReactDOM.createRoot(document.getElementById('root')).render(el(ErrBoundary,null,el(App)));
 </script>
 </body>
 </html>
