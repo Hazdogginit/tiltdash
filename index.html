@@ -597,7 +597,7 @@ const sendNotif=msg=>{
   }
 };
 const prevXP=useRef(0);
-const TABS=[['home','ti-home','Home'],['today','ti-sun','Today'],['tilt','ti-bolt','TILT'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM Plan'],['gym','ti-dumbbell','Gym'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['review','ti-clipboard-check','Review'],['stockists','ti-building-store','Stockists'],['content-cal','ti-calendar-event','Content']];
+const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','ti-calendar-event','Content'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM'],['gym','ti-dumbbell','Gym'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['stockists','ti-building-store','Stockists'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['review','ti-clipboard-check','Review']];
 const GKEYS=[{k:'yr',l:'Yearly'},{k:'qt',l:'Quarterly'},{k:'mo',l:'Monthly'},{k:'wk',l:'Weekly'},{k:'dy',l:'Daily'}];
 const RC=['Sales','Investment','Grant','Other'];
 const EC=['COGS','Marketing','Operations','Equipment','Salary','Tax','Other'];
@@ -997,243 +997,174 @@ const SparkLine=(points,color,height=60)=>{
 };
 // ─── HOME ──────────────────────────────────────────────────────
 const tHome=()=>{
-  // Build 30-day XP sparkline
-  const xpPoints=Array.from({length:30},(_,i)=>{
-    const d=new Date();d.setDate(d.getDate()-(29-i));
-    return sg[d.toISOString().split('T')[0]]||0;
-  });
   const greetHour=new Date().getHours();
-  const greet=greetHour<12?'Good morning':'Good afternoon';
+  const greet=greetHour<12?'Good morning, Harry.':greetHour<17?'Good afternoon, Harry.':'Evening, Harry.';
+  const morningDone=morningItems.length>0&&morningItems.every(x=>x.done);
+  const xpPoints=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return sg[d.toISOString().split('T')[0]]||0;});
   return el('div',null,
-  // ── Affirmation (Feature 11) ─────────────────────────────────
-  todayAff&&el('div',{className:'banner',style:{borderLeft:'4px solid #D97706',marginBottom:14}},
-    el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'#92400E',marginBottom:6}},'Today\'s Identity'),
-    el('div',{style:{fontSize:19,fontWeight:700,color:'var(--tx)',letterSpacing:-.3,lineHeight:1.3}},'"'+todayAff+'"'),
-    el('div',{style:{marginTop:8}},
-      el('button',{onClick:()=>setAffExp(!affExp),style:{background:'none',border:'none',color:'var(--t3)',fontSize:11,cursor:'pointer',padding:0}},(affExp?'▲ Hide':'▼ All affirmations')+' ('+affirmations.length+')'),
-      affExp&&el('div',{style:{marginTop:8}},
-        ...affirmations.map((a,i)=>el('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:13,color:'var(--t2)'}},
-          el('span',{style:{flex:1}},'• '+a),Xb(()=>delAff(i))
-        )),
-        el('div',{style:{display:'flex',gap:6,marginTop:8}},
-          el('input',{className:'ipt',style:{flex:1},value:newAff,onChange:e=>setNewAff(e.target.value),onKeyDown:e=>e.key==='Enter'&&addAff(),placeholder:'Add affirmation...'}),
-          Btn('+',addAff,'bg',{padding:'6px 12px',fontSize:15})
-        )
-      )
-    )
-  ),
-  // ── Streaks row (Feature 9) ──────────────────────────────────
-  el('div',{className:'g4',style:{marginBottom:14}},
-    ...[['🏋️',trainingStreak,'Training'],['🌅',morningStreak,'Morning'],['📱',postingStreak,'Posting'],['✍️',journalStreak,'Journal']].map(([ic,n,l])=>
-      el('div',{key:l,className:'sc'},
-        el('div',{style:{fontSize:20,marginBottom:2}},ic),
-        el('div',{className:'scv',style:{color:n>=7?'var(--gn)':n>0?'var(--go)':'var(--t3)'}},n+'d'),
-        el('div',{className:'scl'},l+' streak')
-      )
-    )
-  ),
-  // ── Page header ──────────────────────────────────────────────
-  el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:10,marginBottom:20}},
+
+  // ── Header ───────────────────────────────────────────────────
+  el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:12,marginBottom:16}},
     el('div',null,
-      el('div',{style:{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,fontWeight:700,letterSpacing:2.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:4}},DLONG+' · Day '+DAYYR),
-      el('div',{style:{fontSize:26,fontWeight:700,letterSpacing:-.5,color:'var(--tx)'}},greet+', Harry.'),
-      el('div',{style:{display:'flex',alignItems:'center',gap:8,marginTop:8,flexWrap:'wrap'}},
-        ...[
-          [streak+'d streak',streak>=7?{background:'#DCFAE6',color:'#027A48'}:{background:'#FEF0C7',color:'#92400E'}],
-          ['T-'+DL+' days to goal',DL<14?{background:'#FEE4E2',color:'#B42318'}:{background:'#EEF2FF',color:'#3730A3'}],
-          [tDone+'/'+tasks.length+' missions',tDone===tasks.length&&tasks.length>0?{background:'#DCFAE6',color:'#027A48'}:{background:'var(--cd)',color:'var(--t2)'}],
-        ].map(([t,s])=>el('span',{key:t,className:'hero-pill',style:s},t))
-      )
+      el('div',{style:{fontSize:11,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:4}},DLONG+' · Week '+Math.ceil(DAYYR/7)),
+      el('div',{style:{fontSize:28,fontWeight:700,letterSpacing:-.5,color:'var(--tx)',lineHeight:1.1}},greet),
+      todayAff&&el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6,maxWidth:400}},'"'+todayAff+'"')
     ),
-    el('div',{style:{background:'var(--sf)',borderRadius:16,padding:'16px 22px',boxShadow:'var(--sh)',textAlign:'center',minWidth:130}},
-      el('div',{style:{fontFamily:"'Barlow Condensed',sans-serif",fontSize:48,fontWeight:700,color:sCol,lineHeight:1,letterSpacing:-2}},score+'%'),
-      el('div',{style:{fontSize:11,fontWeight:700,color:sCol,letterSpacing:1,textTransform:'uppercase',marginTop:4}},score===100?'Perfect day':score>=80?'Strong day':'Keep going'),
-      el('div',{style:{marginTop:10}},
-        el('div',{style:{background:'var(--br)',borderRadius:99,height:6,overflow:'hidden'}},
-          el('div',{style:{height:'100%',borderRadius:99,background:sCol,width:score+'%',transition:'width .6s'}})
-        ),
-        el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:4}},'Daily score')
+    el('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+      el('div',{style:{background:sCol+'18',border:'2px solid '+sCol,borderRadius:14,padding:'10px 18px',textAlign:'center',minWidth:80}},
+        el('div',{style:{fontSize:32,fontWeight:800,color:sCol,lineHeight:1,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:-1}},score+'%'),
+        el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:sCol,marginTop:2}},score>=80?'Strong':'Keep going')
+      ),
+      el('div',{style:{background:'var(--cd)',borderRadius:14,padding:'10px 18px',textAlign:'center',minWidth:80}},
+        el('div',{style:{fontSize:32,fontWeight:800,color:'var(--go)',lineHeight:1,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:-1}},streak),
+        el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginTop:2}},'day streak')
       )
     )
   ),
 
-  // ── XP Level bar ─────────────────────────────────────────────
-  el('div',{className:'card',style:{marginBottom:14,padding:'14px 20px'}},
-    el('div',{style:{display:'flex',alignItems:'center',gap:14}},
-      el('div',{style:{flexShrink:0}},
-        el('div',{style:{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#D97706,#FBBF24)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#fff',fontFamily:"'Barlow Condensed',sans-serif"}},(lvl.i+1)+'')
+  // ── XP bar ───────────────────────────────────────────────────
+  el('div',{style:{background:'var(--cd)',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',alignItems:'center',gap:12}},
+    el('div',{style:{width:32,height:32,borderRadius:8,background:'linear-gradient(135deg,#D97706,#FBBF24)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:'#fff',flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif"}},(lvl.i+1)+''),
+    el('div',{style:{flex:1}},
+      el('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},
+        el('span',{style:{fontSize:12,fontWeight:700,color:'var(--tx)'}},'Lvl '+(lvl.i+1)+' · '+lvl.n),
+        el('span',{style:{fontSize:11,color:'var(--t3)'}},totXP.toLocaleString()+' XP'+(lvl.nx<99999?' · '+(lvl.nx-lvl.min-(totXP-lvl.min))+' to next':''))
       ),
-      el('div',{style:{flex:1}},
-        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:6}},
-          el('div',null,
-            el('span',{style:{fontWeight:700,fontSize:14,color:'var(--tx)'}},'Lvl '+(lvl.i+1)+' · '+lvl.n+' '),
-            el('span',{style:{fontSize:12,color:'var(--t3)'}},totXP.toLocaleString()+' XP')
-          ),
-          lvl.nx<99999&&el('span',{style:{fontSize:11,color:'var(--t3)'}},Math.round(totXP-lvl.min)+'/'+(lvl.nx-lvl.min)+' to '+(LEVELS[lvl.i+1]?.n||'Max'))
-        ),
-        el('div',{className:'hero-xpbg'},el('div',{className:'hero-xpfill',style:{width:xpPct+'%'}}))
+      el('div',{className:'hero-xpbg'},el('div',{className:'hero-xpfill',style:{width:xpPct+'%'}}))
+    )
+  ),
+
+  // ── Streak cards ─────────────────────────────────────────────
+  el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:14}},
+    ...[['🏋️','Train',trainingStreak,'var(--gn)'],['🌅','Morning',morningStreak,'var(--go)'],['📱','Post',postingStreak,'var(--rd2)'],['✍️','Journal',journalStreak,'var(--pu)']].map(([ic,l,n,col])=>
+      el('div',{key:l,style:{background:'var(--cd)',borderRadius:10,padding:'10px 8px',textAlign:'center'}},
+        el('div',{style:{fontSize:18,lineHeight:1,marginBottom:4}},n>=7?'🔥':ic),
+        el('div',{style:{fontSize:22,fontWeight:800,color:n>0?col:'var(--t3)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},n),
+        el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,marginTop:2,textTransform:'uppercase'}},l)
       )
     )
   ),
 
-  // ── Gauge row ─────────────────────────────────────────────────
-  el('div',{className:'gauge-row'},
-    Gauge(score,100,'Today\'s Score','Daily Score',sCol),
-    Gauge(met.ig,19000,'Instagram Followers','IG → 19K Goal','var(--rd2)'),
-    Gauge(streak,30,'Day Streak','30-Day Target',streak>=7?'#12B76A':'#F59E0B'),
-    Gauge(tDone,Math.max(tasks.length,1),'Missions Done','Tasks completed today',tDone===tasks.length&&tasks.length>0?'#12B76A':'#D97706')
-  ),
-
-  // ── Activity chart + quick stats ────────────────────────────
-  el('div',{className:'g2',style:{marginBottom:14}},
-    el('div',{className:'card',style:{marginBottom:0}},
-      el('div',{className:'ph'},
-        el('div',null,
-          el('div',{className:'pt'},'XP Activity'),
-          el('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},Object.values(sg).filter(v=>v>0).length+' active days in last 90')
-        ),
-        el('div',{style:{display:'flex',gap:6,alignItems:'center'}},
-          ...[['#F3F4F6','None'],['#A7F3D0','Low'],['#34D399','Good'],['#059669','Max']].map(([c,l])=>el('div',{key:l,style:{display:'flex',alignItems:'center',gap:3}},el('div',{style:{width:8,height:8,borderRadius:2,background:c}}),el('span',{style:{fontSize:9,color:'var(--t3)'}},l)))
-        )
+  // ── Morning routine ──────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14,background:morningDone?'linear-gradient(135deg,#ECFDF5,#F0FDF4)':undefined,border:morningDone?'1px solid #A7F3D0':undefined}},
+    el('div',{className:'ph'},
+      el('div',null,
+        el('div',{className:'pt'},morningDone?'🔥 Morning Unlocked':'Morning Routine'),
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},morningItems.filter(x=>x.done).length+'/'+morningItems.length+' done · '+morningStreak+'d streak')
       ),
-      el('div',{style:{marginBottom:12,padding:'4px 0'}},SparkLine(xpPoints,'#D97706',52)),
-      el('div',{style:{overflowX:'auto'}},
-        el('div',{style:{display:'flex',gap:3,alignItems:'flex-start',minWidth:170}},
-          el('div',{style:{display:'flex',flexDirection:'column',gap:3,marginRight:6}},
-            ['M','T','W','T','F','S','S'].map((d,i)=>el('div',{key:i},el('span',{style:{fontSize:9,color:'var(--t3)',height:12,lineHeight:'12px',display:'block',textAlign:'right'}},d)))
-          ),
-          el('div',{style:{display:'flex',gap:3}},
-            Array.from({length:13},(_,wi)=>
-              el('div',{key:wi,style:{display:'flex',flexDirection:'column',gap:3}},
-                Array.from({length:7},(_,di)=>{
-                  const off=90-wi*7-(6-di+(7-DOW)%7);
-                  const d=new Date();d.setDate(d.getDate()-off);
-                  if(d>new Date())return el('div',{key:di,className:'scell',style:{background:'transparent'}});
-                  const ds=d.toISOString().split('T')[0];
-                  const xp=sg[ds]||0;
-                  const bg=xp===0?'#F3F4F6':xp>=100?'#059669':xp>=50?'#34D399':xp>=20?'#6EE7B7':'#A7F3D0';
-                  return el('div',{key:di,className:'scell',style:{background:bg},title:ds+': '+xp+' XP'});
-                })
-              )
-            )
-          )
-        )
-      )
+      PB(morningItems.length?morningItems.filter(x=>x.done).length/morningItems.length*100:0,morningDone?'var(--gn)':'var(--go)')
     ),
-    el('div',{style:{display:'flex',flexDirection:'column',gap:12}},
-      // Quick stats column
-      ...[
-        ['TILT Revenue',FMT(mRev),'var(--gn2)',FMT(mRev-mExp)+' profit · '+FMT(mExp)+' out','ti-coin'],
-        ['Stock',curStock+' cans','var(--gb)',curSlabs+' slabs · '+mktgUsed+' mktg use','ti-box'],
-        ['Total Debt',FMT(totalDebt),'var(--pu)',debts.length+' debts · Net worth '+FMT(netWorth),'ti-credit-card'],
-      ].map(([l,v,c,d,ic])=>el('div',{key:l,className:'mc',style:{marginBottom:0,flex:1}},
-        el('div',{className:'mc-accent',style:{background:c}}),
-        el('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:6}},
-          el('i',{className:ic+' ti',style:{fontSize:16,color:c}}),
-          el('span',{className:'mlbl',style:{marginBottom:0}},l)
-        ),
-        el('div',{className:'mval',style:{color:c}},v),
-        el('div',{className:'msub'},d)
+    el('div',{style:{display:'flex',flexWrap:'wrap',gap:6,marginTop:8}},
+      ...morningItems.map(item=>el('div',{key:item.id,onClick:()=>togMorning(item.id),style:{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',background:item.done?'#D1FAE5':'var(--sf)',border:'1px solid '+(item.done?'#6EE7B7':'var(--br)'),borderRadius:8,cursor:'pointer',transition:'all .15s',flex:'0 0 auto'}},
+        el('div',{style:{width:16,height:16,borderRadius:4,border:'2px solid '+(item.done?'var(--gn)':'var(--t3)'),background:item.done?'var(--gn)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},item.done&&el('span',{style:{color:'#fff',fontSize:9,lineHeight:1,fontWeight:700}},'✓')),
+        el('span',{style:{fontSize:12,fontWeight:500,color:item.done?'var(--t3)':'var(--tx)',textDecoration:item.done?'line-through':'none',whiteSpace:'nowrap'}},item.text)
       ))
     )
   ),
 
-  // ── Missions + TILT snapshot ─────────────────────────────────
-  el('div',{className:'g2'},
+  // ── Gauges ───────────────────────────────────────────────────
+  el('div',{className:'gauge-row',style:{marginBottom:14}},
+    Gauge(score,100,'Daily Score','Today',sCol),
+    Gauge(met.ig,19000,'IG Followers','→ 19K','var(--rd2)'),
+    Gauge(monthRev,+revGoal||1,'Revenue','This month','var(--gn)'),
+    Gauge(tDone,Math.max(tasks.length,1),'Missions','Done today',tDone===tasks.length&&tasks.length>0?'#12B76A':'#D97706')
+  ),
+
+  // ── Missions + Quick stats ───────────────────────────────────
+  el('div',{className:'g2',style:{marginBottom:14}},
     el('div',{className:'card',style:{marginBottom:0}},
-      el('div',{className:'ph'},el('div',{className:'pt'},'Today\'s Missions'),el('div',{style:{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:99,background:tDone===tasks.length&&tasks.length>0?'#DCFAE6':'var(--cd)',color:tDone===tasks.length&&tasks.length>0?'var(--gn)':'var(--t3)'}},tDone+'/'+tasks.length)),
-      el('div',{style:{display:'flex',gap:6,marginBottom:12}},
-        el('input',{className:'ipt',style:{flex:1},value:nt,onChange:e=>setNt(e.target.value),onKeyDown:e=>e.key==='Enter'&&addTask(),placeholder:'Add mission...'}),
-        el('select',{className:'ipt',style:{width:68},value:np,onChange:e=>setNp(e.target.value)},el('option',{value:'H'},'High'),el('option',{value:'M'},'Med'),el('option',{value:'L'},'Low')),
-        Btn('+',addTask,'bg',{padding:'6px 12px',fontSize:15})
+      el('div',{className:'ph'},
+        el('div',{className:'pt'},"Today's Missions"),
+        el('div',{style:{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:99,background:tDone===tasks.length&&tasks.length>0?'#DCFAE6':'var(--cd)',color:tDone===tasks.length&&tasks.length>0?'var(--gn)':'var(--t3)'}},tDone+'/'+tasks.length)
       ),
+      el('div',{style:{display:'flex',gap:6,marginBottom:10}},
+        el('input',{className:'ipt',style:{flex:1},value:nt,onChange:e=>setNt(e.target.value),onKeyDown:e=>e.key==='Enter'&&addTask(),placeholder:'Add mission...'}),
+        el('select',{className:'ipt',style:{width:65},value:np,onChange:e=>setNp(e.target.value)},el('option',{value:'H'},'High'),el('option',{value:'M'},'Med'),el('option',{value:'L'},'Low')),
+        Btn('+',addTask,'bg',{padding:'6px 12px'})
+      ),
+      tasks.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 0'}},'No missions yet — what needs to get done today?'),
       ...['H','M','L'].flatMap(p=>tasks.filter(t=>t.pri===p).map(t=>
         el('div',{key:t.id,className:'row'},Chk(t.done,()=>togTask(t.id)),el('span',{className:'bdg b'+p},p==='H'?'High':p==='M'?'Med':'Low'),el('div',{className:'rt'+(t.done?' dn':'')},t.text),Xb(()=>delTask(t.id)))
-      )),
-      tasks.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px 0'}},'No missions yet')
+      ))
     ),
-    el('div',{className:'card',style:{marginBottom:0}},
-      el('div',{className:'ph'},el('div',{className:'pt'},'TILT Snapshot'),el('div',{style:{fontSize:11,color:'var(--t3)'}},['run','gym','sprint','marathon'].filter(k=>tf[k]).length+' sessions today')),
-      el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}},
-        el('div',null,
-          Lbl('Instagram → 19K'),
-          el('div',{style:{fontSize:24,fontWeight:700,color:'var(--rd2)',letterSpacing:-1,lineHeight:1.1}},met.ig.toLocaleString()),
-          el('div',{style:{background:'var(--br)',borderRadius:99,height:5,overflow:'hidden',marginTop:6}},el('div',{style:{height:'100%',borderRadius:99,background:'var(--rd2)',width:Math.min(100,met.ig/19000*100)+'%',transition:'width .5s'}})),
-          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:3}},(met.ig/19000*100).toFixed(1)+'% to goal')
+    el('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+      ...[
+        ['TILT Revenue',FMT(mRev),'var(--gn2)',FMT(mRev-mExp)+' profit','ti-coin'],
+        ['Stock',curStock+' cans','var(--gb)',curSlabs+' slabs left','ti-box'],
+        ['Net Worth',FMT(netWorth),netWorth>=0?'var(--gn)':'var(--rd2)',debts.length+' debts · '+FMT(totalDebt)+' total','ti-credit-card'],
+        ['IG Followers',(met.ig||0).toLocaleString(),'var(--rd2)',(met.ig/19000*100).toFixed(1)+'% to 19K goal','ti-brand-instagram'],
+      ].map(([l,v,c,d,ic])=>el('div',{key:l,className:'mc',style:{marginBottom:0,flex:1}},
+        el('div',{className:'mc-accent',style:{background:c}}),
+        el('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:4}},
+          el('i',{className:ic+' ti',style:{fontSize:14,color:c}}),
+          el('span',{className:'mlbl',style:{marginBottom:0,fontSize:10}},l)
         ),
-        el('div',null,
-          Lbl('TikTok → 1K'),
-          el('div',{style:{fontSize:24,fontWeight:700,color:'var(--gb)',letterSpacing:-1,lineHeight:1.1}},met.tt.toLocaleString()),
-          el('div',{style:{background:'var(--br)',borderRadius:99,height:5,overflow:'hidden',marginTop:6}},el('div',{style:{height:'100%',borderRadius:99,background:'var(--gb)',width:Math.min(100,met.tt/1000*100)+'%',transition:'width .5s'}})),
-          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:3}},(met.tt/1000*100).toFixed(1)+'% to goal')
-        )
-      ),
-      el('div',{style:{marginBottom:12}},
-        Lbl('Protocols'),
-        el('div',{style:{display:'flex',flexDirection:'column',gap:6,marginTop:6}},
-          ...protocols.slice(0,3).map(p=>
-            el('div',{key:p.id,onClick:()=>togH(p.id),style:{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',background:habits[p.id]?'#F0FDF4':'var(--cd)',borderRadius:8,cursor:'pointer',border:'1px solid '+(habits[p.id]?'#A7F3D0':'var(--br)'),transition:'all .15s'}},
-              Chk(habits[p.id],null),
-              el('span',{style:{flex:1,fontSize:12,color:habits[p.id]?'var(--gn)':'var(--tx)',textDecoration:habits[p.id]?'line-through':'none'}},p.label),
-              habits[p.id]&&el('span',{style:{fontSize:9,fontWeight:700,color:'var(--gn)',letterSpacing:1}},'+'+p.xp+' XP')
-            )
-          )
-        )
-      ),
-      Lbl('Training'),
-      el('div',{style:{display:'flex',gap:5,marginTop:6}},[['run','Run'],['gym','Gym'],['sprint','Sprint'],['marathon','Mara']].map(([k,l])=>el('button',{key:k,className:'sess'+(tf[k]?' on':''),onClick:()=>togSess(k)},l)))
+        el('div',{className:'mval',style:{color:c,fontSize:16}},v),
+        el('div',{className:'msub',style:{fontSize:10}},d)
+      ))
     )
   ),
 
-  // ── KPI Scorecard (Feature 8) ────────────────────────────────
-  (()=>{
-    const lastSnap=kpiSnaps.find(k=>k.week!==WEEK_KEY)||kpiSnaps[0]||{};
-    const thisOrders=fin.filter(e=>e.type==='revenue'&&e.date?.startsWith(thisM)).length;
-    const rows=[
-      ['Revenue',FMT(mRev),lastSnap.rev!=null?FMT(lastSnap.rev):'—',mRev-(lastSnap.rev||0)],
-      ['Orders',thisOrders,lastSnap.orders!=null?lastSnap.orders:'—',thisOrders-(lastSnap.orders||0)],
-      ['IG Followers',met.ig.toLocaleString(),lastSnap.ig!=null?lastSnap.ig.toLocaleString():'—',met.ig-(lastSnap.ig||0)],
-      ['TT Followers',met.tt.toLocaleString(),lastSnap.tt!=null?lastSnap.tt.toLocaleString():'—',met.tt-(lastSnap.tt||0)],
-      ['Cans Out',cansOut,lastSnap.cansOut!=null?lastSnap.cansOut:'—',cansOut-(lastSnap.cansOut||0)],
-      ['Content Posts',contentPosts,lastSnap.posts!=null?lastSnap.posts:'—',contentPosts-(lastSnap.posts||0)],
-    ];
-    return el('div',{className:'card',style:{marginTop:14}},
-      el('div',{className:'ph'},PT('KPI Scorecard'),Btn('Save Snapshot',saveKpiSnap,'bg')),
-      el('div',{style:{overflowX:'auto'}},
-        el('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
-          el('thead',null,el('tr',null,...['Metric','This Week','Last Week','Change'].map(h=>el('th',{key:h,style:{textAlign:h==='Metric'?'left':'right',padding:'8px 10px',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--t3)',borderBottom:'1px solid var(--br)'}},h)))),
-          el('tbody',null,...rows.map(([m,tw,lw,ch])=>el('tr',{key:m},
-            el('td',{style:{padding:'9px 10px',fontWeight:600,borderBottom:'1px solid var(--br)'}},m),
-            el('td',{style:{padding:'9px 10px',textAlign:'right',borderBottom:'1px solid var(--br)'}},tw),
-            el('td',{style:{padding:'9px 10px',textAlign:'right',color:'var(--t3)',borderBottom:'1px solid var(--br)'}},lw),
-            el('td',{style:{padding:'9px 10px',textAlign:'right',fontWeight:700,color:ch>0?'var(--gn)':ch<0?'var(--rd2)':'var(--t3)',borderBottom:'1px solid var(--br)'}},(ch>0?'+':'')+(typeof ch==='number'?ch.toLocaleString():ch))
-          )))
+  // ── Mood + XP heatmap ────────────────────────────────────────
+  el('div',{className:'g2',style:{marginBottom:14}},
+    el('div',{className:'card',style:{marginBottom:0}},
+      el('div',{className:'ph'},PT('Mood'),todayMood>0&&el('span',{style:{fontSize:20}},['','😞','😕','😐','🙂','😄'][todayMood])),
+      el('div',{style:{display:'flex',gap:8,marginBottom:12}},
+        ...[[1,'😞'],[2,'😕'],[3,'😐'],[4,'🙂'],[5,'😄']].map(([v,e])=>
+          el('button',{key:v,onClick:()=>setMoodToday(v),style:{flex:1,fontSize:22,padding:'8px 0',borderRadius:8,cursor:'pointer',border:'2px solid '+(todayMood===v?'#D97706':'var(--br)'),background:todayMood===v?'#FFFBEB':'var(--cd)',transition:'all .15s'}},e)
         )
-      )
-    );
-  })(),
-
-  // ── Mood Tracker (Feature 4) ─────────────────────────────────
-  el('div',{className:'card',style:{marginTop:14}},
-    el('div',{className:'ph'},PT('How are you feeling today?'),todayMood>0&&el('span',{style:{fontSize:11,color:'var(--gn2)'}},'Logged')),
-    el('div',{style:{display:'flex',gap:10,marginBottom:14}},
-      ...[[1,'😞'],[2,'😕'],[3,'😐'],[4,'🙂'],[5,'😄']].map(([v,e])=>
-        el('button',{key:v,onClick:()=>setMoodToday(v),style:{flex:1,fontSize:26,padding:'8px 0',borderRadius:10,cursor:'pointer',border:'2px solid '+(todayMood===v?'#D97706':'var(--br)'),background:todayMood===v?'#FFFBEB':'var(--cd)',transition:'all .15s'}},e)
+      ),
+      el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--t3)',marginBottom:5}},'30 days'),
+      el('div',{style:{display:'flex',gap:3}},
+        ...Array.from({length:30},(_,i)=>{
+          const d=new Date();d.setDate(d.getDate()-(29-i));const ds=d.toISOString().split('T')[0];
+          const m=moodLog.find(x=>x.date===ds)?.mood||0;
+          const bg=m===0?'var(--br)':m<=2?'#F04438':m===3?'#F59E0B':'#12B76A';
+          return el('div',{key:ds,title:ds+(m?': '+['','😞','😕','😐','🙂','😄'][m]:''),style:{flex:1,height:20,borderRadius:3,background:bg}});
+        })
       )
     ),
-    el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},'Last 30 days'),
-    el('div',{style:{display:'flex',gap:3,flexWrap:'wrap'}},
-      ...Array.from({length:30},(_,i)=>{
-        const d=new Date();d.setDate(d.getDate()-(29-i));const ds=d.toISOString().split('T')[0];
-        const m=moodLog.find(x=>x.date===ds)?.mood||0;
-        const bg=m===0?'var(--br)':m<=2?'#F04438':m===3?'#F59E0B':'#12B76A';
-        return el('div',{key:ds,title:ds+(m?': '+m:''),style:{width:12,height:12,borderRadius:'50%',background:bg}});
-      })
+    el('div',{className:'card',style:{marginBottom:0}},
+      el('div',{className:'ph'},PT('XP Activity'),el('span',{style:{fontSize:11,color:'var(--t3)'}},Object.values(sg).filter(v=>v>0).length+'d active')),
+      el('div',{style:{marginBottom:8}},SparkLine(xpPoints,'#D97706',40)),
+      el('div',{style:{overflowX:'auto'}},
+        el('div',{style:{display:'flex',gap:3}},
+          Array.from({length:13},(_,wi)=>
+            el('div',{key:wi,style:{display:'flex',flexDirection:'column',gap:3}},
+              Array.from({length:7},(_,di)=>{
+                const off=90-wi*7-(6-di+(7-DOW)%7);
+                const d=new Date();d.setDate(d.getDate()-off);
+                if(d>new Date())return el('div',{key:di,className:'scell',style:{background:'transparent'}});
+                const ds=d.toISOString().split('T')[0];const xp=sg[ds]||0;
+                const bg=xp===0?'#F3F4F6':xp>=100?'#059669':xp>=50?'#34D399':xp>=20?'#6EE7B7':'#A7F3D0';
+                return el('div',{key:di,className:'scell',style:{background:bg},title:ds+': '+xp+' XP'});
+              })
+            )
+          )
+        )
+      )
+    )
+  ),
+
+  // ── Habits + training ────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14}},
+    el('div',{className:'ph'},PT('Protocols & Training')),
+    el('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
+      ...protocols.slice(0,4).map(p=>
+        el('div',{key:p.id,onClick:()=>togH(p.id),style:{display:'flex',alignItems:'center',gap:7,padding:'7px 12px',background:habits[p.id]?'#F0FDF4':'var(--cd)',borderRadius:8,cursor:'pointer',border:'1px solid '+(habits[p.id]?'#A7F3D0':'var(--br)'),transition:'all .15s',flex:'1 1 180px'}},
+          Chk(habits[p.id],null),
+          el('span',{style:{fontSize:12,color:habits[p.id]?'var(--gn)':'var(--tx)',textDecoration:habits[p.id]?'line-through':'none',flex:1}},p.label),
+          habits[p.id]&&el('span',{style:{fontSize:9,fontWeight:700,color:'var(--gn)',letterSpacing:1}},'+'+p.xp)
+        )
+      ),
+      ...[['run','🏃 Run'],['gym','🏋️ Gym'],['sprint','⚡ Sprint'],['marathon','🏅 Mara']].map(([k,l])=>
+        el('button',{key:k,className:'sess'+(tf[k]?' on':''),onClick:()=>togSess(k),style:{flex:'1 1 80px'}},l)
+      )
     )
   )
 );};
 
-// ─── TODAY ─────────────────────────────────────────────────────
+// ─── TODAY (kept for data but not shown as a tab) ───────────────
 const tToday=()=>{
   const ortho=getOrthoInfo(TODAY);
   return el('div',null,
@@ -1339,6 +1270,66 @@ const tToday=()=>{
 
 // ─── TILT ──────────────────────────────────────────────────────
 const tTilt=()=>el('div',null,
+  // ── Deep Work Timer ──────────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},PT('Deep Work Timer'),el('div',{style:{display:'flex',alignItems:'center',gap:10}},el('div',{style:{fontSize:11,color:'var(--go)',fontWeight:700}},pomos+' sessions today'))),
+    !pActive&&el('div',{style:{display:'flex',gap:16,marginBottom:16,justifyContent:'center',flexWrap:'wrap'}},
+      el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:4}},
+        el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},'Work (min)'),
+        el('div',{style:{display:'flex',alignItems:'center',gap:4}},
+          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.max(1,pWorkMins-5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-minus',style:{fontSize:12}})),
+          el('div',{style:{fontSize:20,fontWeight:700,width:36,textAlign:'center',color:'var(--go)'}},pWorkMins),
+          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.min(120,pWorkMins+5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-plus',style:{fontSize:12}}))
+        )
+      ),
+      el('div',{style:{width:1,background:'var(--br)',alignSelf:'stretch'}}),
+      el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:4}},
+        el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},'Break (min)'),
+        el('div',{style:{display:'flex',alignItems:'center',gap:4}},
+          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.max(1,pBreakMins-1);setPBreakMins(v);sts('pomo-break-mins',v);if(pMode==='break'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-minus',style:{fontSize:12}})),
+          el('div',{style:{fontSize:20,fontWeight:700,width:36,textAlign:'center',color:'var(--gn)'}},pBreakMins),
+          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.min(30,pBreakMins+1);setPBreakMins(v);sts('pomo-break-mins',v);if(pMode==='break'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-plus',style:{fontSize:12}}))
+        )
+      )
+    ),
+    el('div',{style:{textAlign:'center',padding:'8px 0 16px'}},
+      el('div',{style:{display:'inline-flex',background:'var(--cd)',borderRadius:99,padding:'2px',gap:2,marginBottom:14}},
+        el('button',{onClick:()=>{if(!pActive){setPMode('work');setPs(pWorkMins*60);}},style:{padding:'5px 16px',borderRadius:99,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',background:pMode==='work'?'#D97706':'transparent',color:pMode==='work'?'#fff':'var(--t3)',transition:'all .15s'}},'Work'),
+        el('button',{onClick:()=>{if(!pActive){setPMode('break');setPs(pBreakMins*60);}},style:{padding:'5px 16px',borderRadius:99,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',background:pMode==='break'?'var(--gn)':'transparent',color:pMode==='break'?'#fff':'var(--t3)',transition:'all .15s'}},'Break')
+      ),
+      el('div',{style:{position:'relative',display:'inline-block',width:'min(180px,60vw)',height:'min(180px,60vw)'}},
+        el('svg',{viewBox:'0 0 180 180',style:{width:'100%',height:'100%',transform:'rotate(-90deg)'}},
+          el('circle',{cx:90,cy:90,r:80,fill:'none',stroke:'var(--br)',strokeWidth:8}),
+          el('circle',{cx:90,cy:90,r:80,fill:'none',stroke:pMode==='work'?'#D97706':'var(--gn2)',strokeWidth:8,strokeLinecap:'round',strokeDasharray:2*Math.PI*80,strokeDashoffset:2*Math.PI*80*(1-(ps/((pMode==='work'?pWorkMins:pBreakMins)*60))),style:{transition:'stroke-dashoffset .5s',filter:pActive?('drop-shadow(0 0 6px '+(pMode==='work'?'#F59E0B':'#34D399')+')'):'none'}})
+        ),
+        el('div',{style:{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center',width:'100%'}},
+          el('div',{className:'pomo-time',style:{color:pActive?(pMode==='work'?'var(--go)':'var(--gn)'):'var(--t2)',fontSize:'clamp(32px,10vw,48px)'}},String(pMins).padStart(2,'0')+':'+String(pSecs).padStart(2,'0')),
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:pMode==='work'?'var(--go)':'var(--gn)',marginTop:2}},pMode==='work'?'DEEP WORK':'BREAK')
+        )
+      ),
+      el('div',{style:{display:'flex',gap:8,justifyContent:'center',marginTop:16}},
+        el('button',{onClick:()=>{ensureAudio();if('Notification'in window&&Notification.permission==='default')Notification.requestPermission();setPActive(!pActive);},style:{padding:'10px 28px',borderRadius:10,border:'none',background:pActive?'var(--t2)':(pMode==='work'?'#D97706':'var(--gn)'),color:'#fff',fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,textTransform:'uppercase',cursor:'pointer',transition:'all .15s',boxShadow:pActive?'none':'0 2px 8px rgba(0,0,0,.15)'}},pActive?'⏸ PAUSE':'▶ START'),
+        el('button',{onClick:()=>{setPActive(false);setPs(pMode==='work'?pWorkMins*60:pBreakMins*60);},style:{padding:'10px 16px',borderRadius:10,border:'1.5px solid var(--br)',background:'transparent',color:'var(--t2)',fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',cursor:'pointer'}},'↺ RESET')
+      )
+    ),
+    pShowNote&&el('div',{style:{marginTop:4,background:'linear-gradient(135deg,#FFFBEB,#FFFDF5)',border:'1px solid #F0E0B0',borderRadius:12,padding:16}},
+      el('div',{style:{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--go)',marginBottom:8}},'✅ Session complete — what did you accomplish?'),
+      el('textarea',{className:'jtxt',rows:3,value:pNoteInput,onChange:e=>setPNoteInput(e.target.value),placeholder:'e.g. Finished landing page copy, replied to 5 emails...',style:{width:'100%',resize:'vertical'}}),
+      el('div',{style:{display:'flex',gap:8,marginTop:8}},
+        el('button',{onClick:()=>{if(pNoteInput.trim()){const sess={id:Date.now()+'',date:TODAY,time:new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}),duration:pWorkMins,note:pNoteInput.trim()};const u=[sess,...pSessions].slice(0,50);setPSessions(u);sts('pomo-sessions',u);}setPShowNote(false);setPNoteInput('');},style:{padding:'7px 18px',borderRadius:8,border:'none',background:'#D97706',color:'#fff',fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',cursor:'pointer'}},pNoteInput.trim()?'Save Note':'Skip')
+      )
+    ),
+    pSessions.filter(s=>s.date===TODAY).length>0&&el('div',{style:{marginTop:12}},
+      el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},"Today's sessions"),
+      ...pSessions.filter(s=>s.date===TODAY).map(s=>
+        el('div',{key:s.id,style:{display:'flex',gap:10,padding:'8px 10px',background:'var(--cd)',borderRadius:8,marginBottom:6,alignItems:'flex-start'}},
+          el('div',{style:{flexShrink:0}},el('div',{style:{fontSize:10,fontWeight:700,color:'var(--go)'}},s.time),el('div',{style:{fontSize:9,color:'var(--t3)'}},s.duration+'min')),
+          el('div',{style:{fontSize:12,color:'var(--tx)',lineHeight:1.5,flex:1}},s.note),
+          Xb(()=>{const u=pSessions.filter(x=>x.id!==s.id);setPSessions(u);sts('pomo-sessions',u);})
+        )
+      )
+    )
+  ),
   el('div',{className:'card'},
     el('div',{className:'ph'},PT('TILT Metrics')),
     el('div',{style:{display:'flex',gap:12,flexWrap:'wrap'}},
@@ -3307,19 +3298,19 @@ const screenCard=()=>{
   );
 };
 
-const renders={home:tHome,today:tToday,tilt:tTilt,training:tTraining,halfmarathon:tHalfMarathon,gym:tGym,money:tMoney,plan:tPlan,learn:tLearn,people:tPeople,notes:tNotes,reflect:tReflect,journal:tJournal,sync:tSync,morning:tMorning,wellness:tWellness,review:tReview,stockists:tStockists,'content-cal':tContentCal};
+const renders={home:tHome,tilt:tTilt,training:tTraining,halfmarathon:tHalfMarathon,gym:tGym,money:tMoney,plan:tPlan,learn:tLearn,people:tPeople,notes:tNotes,reflect:tReflect,journal:tJournal,sync:tSync,morning:tMorning,wellness:tWellness,review:tReview,stockists:tStockists,'content-cal':tContentCal};
 const ALL_TABS=[...TABS,['sync','ti-refresh','Sync']];
 const TAB_SECTIONS=[
-  {label:'Overview',tabs:['home','today']},
-  {label:'Business',tabs:['tilt','stockists','content-cal']},
-  {label:'Health',tabs:['training','halfmarathon','gym','morning','wellness']},
-  {label:'Finance',tabs:['money']},
-  {label:'Productivity',tabs:['plan','learn']},
-  {label:'Life',tabs:['people','notes','reflect','journal','review']},
+  {label:'Home',tabs:['home']},
+  {label:'TILT',tabs:['tilt','content-cal','stockists']},
+  {label:'Train',tabs:['training','halfmarathon','gym','morning','wellness']},
+  {label:'Money',tabs:['money']},
+  {label:'Plan',tabs:['plan','learn']},
+  {label:'Me',tabs:['people','notes','reflect','journal','review']},
   {label:'System',tabs:['sync']},
 ];
 const TAB_MAP=Object.fromEntries(ALL_TABS.map(t=>[t[0],t]));
-const tabLabel={home:'My Dashboard',today:'Today',tilt:'TILT Brand',training:'Training',halfmarathon:'HM Plan',gym:'Gym',money:'Money',plan:'Plan',learn:'Learn',people:'People',notes:'Notes',reflect:'Reflect',journal:'Journal',sync:'Sync',morning:'Morning Routine',wellness:'Sleep & Energy',review:'Weekly Review',stockists:'Stockist CRM','content-cal':'Content Calendar'};
+const tabLabel={home:'Home',tilt:'TILT',training:'Training','content-cal':'Content',halfmarathon:'HM Plan',gym:'Gym',money:'Money',plan:'Plan',learn:'Learn',people:'People',notes:'Notes',reflect:'Reflect',journal:'Journal',sync:'Sync',morning:'Morning',wellness:'Sleep',review:'Weekly Review',stockists:'Stockists'};
 
 return el('div',{className:'layout'},
   notif&&el('div',{className:'notif'},notif),
