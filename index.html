@@ -1101,7 +1101,7 @@ const SparkLine=(points,color,height=60)=>{
 const tHome=()=>{
   const greetHour=new Date().getHours();
   const greet=greetHour<12?'Good morning, Harry.':greetHour<17?'Good afternoon, Harry.':'Evening, Harry.';
-  const morningDone=morningItems.length>0&&morningItems.every(x=>x.done);
+  const morningDone=morning.length>0&&morning.every(x=>x.done);
   const xpPoints=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return sg[d.toISOString().split('T')[0]]||0;});
   return el('div',null,
 
@@ -1152,12 +1152,12 @@ const tHome=()=>{
     el('div',{className:'ph'},
       el('div',null,
         el('div',{className:'pt'},morningDone?'🔥 Morning Unlocked':'Morning Routine'),
-        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},morningItems.filter(x=>x.done).length+'/'+morningItems.length+' done · '+morningStreak+'d streak')
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},morning.filter(x=>x.done).length+'/'+morning.length+' done · '+morningStreak+'d streak')
       ),
-      PB(morningItems.length?morningItems.filter(x=>x.done).length/morningItems.length*100:0,morningDone?'var(--gn)':'var(--go)')
+      PB(morning.length?morning.filter(x=>x.done).length/morning.length*100:0,morningDone?'var(--gn)':'var(--go)')
     ),
     el('div',{style:{display:'flex',flexWrap:'wrap',gap:6,marginTop:8}},
-      ...morningItems.map(item=>el('div',{key:item.id,onClick:()=>togMorning(item.id),style:{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',background:item.done?'#D1FAE5':'var(--sf)',border:'1px solid '+(item.done?'#6EE7B7':'var(--br)'),borderRadius:8,cursor:'pointer',transition:'all .15s',flex:'0 0 auto'}},
+      ...morning.map(item=>el('div',{key:item.id,onClick:()=>togMorning(item.id),style:{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',background:item.done?'#D1FAE5':'var(--sf)',border:'1px solid '+(item.done?'#6EE7B7':'var(--br)'),borderRadius:8,cursor:'pointer',transition:'all .15s',flex:'0 0 auto'}},
         el('div',{style:{width:16,height:16,borderRadius:4,border:'2px solid '+(item.done?'var(--gn)':'var(--t3)'),background:item.done?'var(--gn)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},item.done&&el('span',{style:{color:'#fff',fontSize:9,lineHeight:1,fontWeight:700}},'✓')),
         el('span',{style:{fontSize:12,fontWeight:500,color:item.done?'var(--t3)':'var(--tx)',textDecoration:item.done?'line-through':'none',whiteSpace:'nowrap'}},item.text)
       ))
