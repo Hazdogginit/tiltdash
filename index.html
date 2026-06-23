@@ -550,6 +550,13 @@ const[newR,setNewR]=useState({date:TODAY,dist:'',time:'',type:'easy',notes:''});
 const[mSetup,setMSetup]=useState(false);
 const[mcd,setMcd]=useState({});
 const[wp,setWp]=useState(()=>stg('week-plan-'+WEEK_KEY)||{theme:'',p1:'',p2:'',p3:'',p1done:false,p2done:false,p3done:false,blocks:{}});
+const WDAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const WD_LABELS={Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'};
+const WORKOUT_TYPES=['Run','Gym','Swim','Cycle','HIIT','Rest','Other'];
+const WP_DEF=Object.fromEntries(WDAYS.map(d=>[d,{label:'',type:'Rest',done:false}]));
+const[wplan,setWplan]=useState(()=>stg('workout-plan-'+WEEK_KEY)||WP_DEF);
+const[editWday,setEditWday]=useState(null);
+const[newWo,setNewWo]=useState({label:'',type:'Run'});
 // EOD review — keyed per day
 const EOD_KEY='eod-'+TODAY;
 const[eod,setEod]=useState(()=>stg(EOD_KEY)||{score:'',win:'',improve:'',tomorrow:'',energy:'',saved:false});
@@ -989,6 +996,9 @@ const saveMCfg=()=>{const u={rd:mcd.rd||mCfg.rd,rn:mcd.rn||mCfg.rn,km:+mcd.km||m
 const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');};
 const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
 const togWP=(f)=>{const u={...wp,[f]:!wp[f]};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
+const togWo=day=>{const u={...wplan,[day]:{...wplan[day],done:!wplan[day].done}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);};
+const saveWo=day=>{const u={...wplan,[day]:{...wplan[day],...newWo}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);setEditWday(null);setNewWo({label:'',type:'Run'});showN('Workout saved');};
+const clearWo=day=>{const u={...wplan,[day]:{label:'',type:'Rest',done:false}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);};
 const saveEod=(f,v)=>{const u={...eod,[f]:v};setEod(u);sts(EOD_KEY,u);};
 const submitEod=()=>{const u={...eod,saved:true,date:TODAY,time:new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})};setEod(u);sts(EOD_KEY,u);setEodOpen(false);showN('EOD review saved ✓');};
 // Read past EOD reviews (last 30 days)
@@ -1221,6 +1231,19 @@ const tHome=()=>{
       ))
     )
   ),
+
+  // ── Today's Workout ──────────────────────────────────────────
+  (()=>{const todayWdayH=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][DOW];const wo=wplan[todayWdayH]||{label:'',type:'Rest',done:false};const WO_COL_H={Run:['#D1FAE5','#065F46'],Gym:['#DBEAFE','#1E40AF'],Swim:['#E0F2FE','#0369A1'],Cycle:['#FEF9C3','#713F12'],HIIT:['#FEE2E2','#991B1B'],Rest:['#F3F4F6','var(--t3)'],Other:['#EDE9FE','#6D28D9']};const[bg,fg]=WO_COL_H[wo.type]||WO_COL_H.Rest;
+  return el('div',{className:'card',style:{marginBottom:14,borderLeft:'3px solid '+(wo.done?'var(--gn)':wo.label?'var(--go)':'var(--br)')}},
+    el('div',{className:'ph'},
+      el('div',null,el('div',{className:'pt'},"Today's Workout"),el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},WD_LABELS[todayWdayH]||todayWdayH)),
+      wo.label&&el('button',{onClick:()=>togWo(todayWdayH),style:{width:32,height:32,borderRadius:8,border:'1.5px solid '+(wo.done?'var(--gn)':'var(--t3)'),background:wo.done?'var(--gn)':'transparent',color:wo.done?'#fff':'var(--t3)',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}},wo.done?'✓':'○')
+    ),
+    wo.label?el('div',{style:{display:'flex',alignItems:'center',gap:10,marginTop:8}},
+      el('div',{style:{display:'inline-flex',alignItems:'center',padding:'3px 10px',borderRadius:6,background:bg,color:fg,fontSize:11,fontWeight:700}},wo.type),
+      el('div',{style:{fontSize:13,color:wo.done?'var(--t3)':'var(--tx)',textDecoration:wo.done?'line-through':'none',flex:1}},wo.label)
+    ):el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6,cursor:'pointer'},onClick:()=>setTab('training')},'No workout planned — tap to add in Training')
+  );})(),
 
   // ── Gratitude ────────────────────────────────────────────────
   el('div',{className:'card',style:{marginBottom:14}},
@@ -1850,7 +1873,52 @@ const tTilt=()=>el('div',null,
 );
 
 // ─── TRAINING ──────────────────────────────────────────────────
-const tTraining=()=>el('div',null,
+const tTraining=()=>{
+  const todayWday=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][DOW];
+  const WO_COLORS={Run:['#D1FAE5','#065F46'],Gym:['#DBEAFE','#1E40AF'],Swim:['#E0F2FE','#0369A1'],Cycle:['#FEF9C3','#713F12'],HIIT:['#FEE2E2','#991B1B'],Rest:['#F3F4F6','var(--t3)'],Other:['#EDE9FE','#6D28D9']};
+  const woDone=WDAYS.filter(d=>wplan[d]&&wplan[d].done).length;
+  const woPlanned=WDAYS.filter(d=>wplan[d]&&wplan[d].type!=='Rest'&&wplan[d].label).length;
+  const woPct=woPlanned>0?Math.round(woDone/woPlanned*100):0;
+  return el('div',null,
+  el('div',{className:'card',style:{marginBottom:12}},
+    el('div',{className:'ph'},
+      el('div',null,
+        el('div',{className:'pt'},'Weekly Training Plan'),
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},'Week of '+WEEK_KEY)
+      ),
+      el('div',{style:{background:'var(--cd)',borderRadius:8,padding:'4px 10px',fontSize:12,fontWeight:700,color:woDone>0?'var(--gn)':'var(--t3)'}},woDone+'/'+woPlanned+' done')
+    ),
+    woPlanned>0&&el('div',{style:{marginTop:8,marginBottom:10}},PB(woPct,'var(--gn)')),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:8,marginTop:8}},
+      ...WDAYS.map(day=>{
+        const wo=wplan[day]||{label:'',type:'Rest',done:false};
+        const isToday=day===todayWday;
+        const [bg,fg]=WO_COLORS[wo.type]||WO_COLORS.Rest;
+        const isEditing=editWday===day;
+        return el('div',{key:day,style:{border:'1.5px solid '+(isToday?'#F59E0B':'var(--br)'),borderRadius:10,padding:10,background:'var(--sf)'}},
+          el('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            el('div',{style:{width:36,fontSize:11,fontWeight:700,color:isToday?'#D97706':'var(--t2)',flexShrink:0}},day+(isToday?' ★':'')),
+            el('div',{style:{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:6,background:bg,color:fg,fontSize:10,fontWeight:700,flexShrink:0}},wo.type),
+            el('div',{style:{flex:1,fontSize:12,color:wo.label?'var(--tx)':'var(--t3)',fontStyle:wo.label?'normal':'italic'}},wo.label||'Rest'),
+            el('div',{style:{display:'flex',gap:4,flexShrink:0}},
+              el('button',{onClick:()=>togWo(day),style:{width:26,height:26,borderRadius:6,border:'1.5px solid '+(wo.done?'var(--gn)':'var(--t3)'),background:wo.done?'var(--gn)':'transparent',color:wo.done?'#fff':'var(--t3)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center'}},wo.done?'✓':''),
+              el('button',{onClick:()=>{if(isEditing){setEditWday(null);}else{setEditWday(day);setNewWo({label:wo.label||'',type:wo.type||'Run'});}},style:{width:26,height:26,borderRadius:6,border:'1px solid var(--br)',background:'var(--cd)',color:'var(--t2)',cursor:'pointer',fontSize:11}},isEditing?'✕':'✎')
+            )
+          ),
+          isEditing&&el('div',{style:{marginTop:8,display:'flex',flexDirection:'column',gap:6}},
+            el('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+              ...WORKOUT_TYPES.map(t=>el('button',{key:t,onClick:()=>setNewWo(p=>({...p,type:t})),style:{padding:'4px 10px',borderRadius:6,border:'1.5px solid '+(newWo.type===t?'var(--ac)':'var(--br)'),background:newWo.type===t?'var(--ac)':'var(--cd)',color:newWo.type===t?'#fff':'var(--t2)',fontSize:11,cursor:'pointer',fontWeight:newWo.type===t?700:400}},t))
+            ),
+            el('input',{className:'ipt',value:newWo.label,onChange:e=>setNewWo(p=>({...p,label:e.target.value})),placeholder:'e.g. Run 8km easy, strength + core…',onKeyDown:e=>e.key==='Enter'&&saveWo(day)}),
+            el('div',{style:{display:'flex',gap:6}},
+              Btn('Save',()=>saveWo(day),'bg',{fontSize:11,padding:'6px 14px'}),
+              Btn('Clear',()=>clearWo(day),'',{fontSize:11,padding:'6px 14px'})
+            )
+          )
+        );
+      })
+    )
+  ),
   sesh&&mCfg.rd&&el('div',{style:{background:'linear-gradient(135deg,#ECFDF5,#F0FDF4)',border:'1px solid #A7F3D0',borderRadius:12,padding:14,marginBottom:12}},
     el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}},
       el('div',null,
@@ -1966,7 +2034,7 @@ const tTraining=()=>el('div',null,
       })
     )
   )
-);
+);};
 
 // ─── MONEY ─────────────────────────────────────────────────────
 const tMoney=()=>{try{return el('div',null,
