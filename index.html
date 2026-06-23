@@ -533,8 +533,16 @@ const[finTab,setFinTab]=useState('pl');
 const[calcBudget,setCalcBudget]=useState(()=>stg('calc-budget')||'');
 const[calcStrat,setCalcStrat]=useState('avalanche');
 const[slog,setSlog]=useState(()=>stg('stock-log')||[]);
-const[addS,setAddS]=useState(null);
-const[newS,setNewS]=useState({cans:'',slabs:'',cat:'purchase',note:''});
+const[addS,setAddS]=useState(null); // 'in'|'out'|'sale'|null
+const[newS,setNewS]=useState({sku:'Original',cans:'',slabs:'',cat:'purchase',note:''});
+// Sales log
+const[sales,setSales]=useState(()=>stg('tilt-sales')||[]);
+const[addSale,setAddSale]=useState(false);
+const[newSale,setNewSale]=useState({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});
+// SKU management
+const[skus,setSkus]=useState(()=>stg('tilt-skus')||SKUS);
+const[addSkuMode,setAddSkuMode]=useState(false);
+const[newSkuName,setNewSkuName]=useState('');
 const[mCfg,setMCfg]=useState(()=>stg('mara-cfg')||{rd:'',rn:'',km:50});
 const[rlog,setRlog]=useState(()=>stg('run-log')||[]);
 const[addR,setAddR]=useState(false);
@@ -727,8 +735,11 @@ const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','
 const GKEYS=[{k:'yr',l:'Yearly'},{k:'qt',l:'Quarterly'},{k:'mo',l:'Monthly'},{k:'wk',l:'Weekly'},{k:'dy',l:'Daily'}];
 const RC=['Sales','Investment','Grant','Other'];
 const EC=['COGS','Marketing','Operations','Equipment','Salary','Tax','Other'];
-const SCI=['Purchase','Production','Return'];
-const SCO=['Marketing','Sampling','Event','Activation','Damage','Internal','Other'];
+const SCI=['Purchase','Production','Return','Transfer In'];
+const SCO=['Marketing','Sampling','Event','Activation','Damage','Internal','Transfer Out','Other'];
+// TILT SKUs
+const SKUS=['Original','Tropical','Watermelon','Berry Blast','Mango','Other'];
+const SKU_DEF=Object.fromEntries(SKUS.map(s=>[s,0]));
 
 // Load streak grid on mount (read all xp days from localStorage)
 useEffect(()=>{
@@ -923,7 +934,10 @@ const mExp=fin.filter(e=>e.type==='expense'&&e.date?.startsWith(thisM)).reduce((
 const monthRev=mRev;
 const curStock=stockBal(slog);
 const curSlabs=Math.floor(curStock/24);
-const mktgUsed=slog.filter(e=>e.dir==='out').reduce((s,e)=>s+(+e.cans||0)+(+e.slabs||0)*24,0);
+const mktgUsed=slog.filter(e=>e.dir==='out'&&e.cat!=='sale').reduce((s,e)=>s+(+e.cans||0)+(+e.slabs||0)*24,0);
+const totalSold=sales.reduce((s,e)=>s+e.totalCans,0);
+// Per-SKU balances
+const skuBal=sku=>slog.filter(e=>e.sku===sku||e.sku==='All').reduce((s,e)=>{const c=(+e.cans||0)+(+e.slabs||0)*24;return e.dir==='in'?s+c:s-c;},0);
 const sesh=prescribe(mCfg.rd,mCfg.km,DOW);
 const wkKm=rlog.filter(r=>{const d=new Date(r.date+'T12:00'),s=new Date();s.setDate(s.getDate()-DOW);return d>=s;}).reduce((s,r)=>s+(+r.dist||0),0);
 const todayLm=lm[TODAY]||0;
@@ -959,7 +973,12 @@ const doAddCharge=(id)=>{
 };
 const doPay=id=>{if(!newP.amount)return;const u=debts.map(d=>d.id===id?{...d,payments:[...(d.payments||[]),{id:Date.now()+'',date:TODAY,amount:+newP.amount,note:newP.note}]}:d);setDebts(u);sts('debts',u);setNewP({amount:'',note:''});setPayD(null);showN('Payment recorded — '+FMT(newP.amount));};
 const doAddFin=()=>{if(!newF.amount)return;const u=[...fin,{id:Date.now()+'',date:newF.date||TODAY,type:newF.type,amount:+newF.amount,cat:newF.cat,note:newF.note}];setFin(u);sts('tilt-fin',u);setNewF({type:'revenue',date:TODAY,amount:'',cat:'Sales',note:''});setAddF(false);};
-const doStock=dir=>{if(!newS.cans&&!newS.slabs)return;const u=[{id:Date.now()+'',date:TODAY,dir,...newS,cans:+newS.cans||0,slabs:+newS.slabs||0},...slog];setSlog(u);sts('stock-log',u);showN(dir==='in'?'Stock received':'Usage logged');setAddS(null);setNewS({cans:'',slabs:'',cat:dir==='in'?'purchase':'marketing',note:''});};
+const doStock=dir=>{if(!newS.cans&&!newS.slabs)return;const u=[{id:Date.now()+'',date:TODAY,dir,sku:newS.sku||'All',...newS,cans:+newS.cans||0,slabs:+newS.slabs||0},...slog];setSlog(u);sts('stock-log',u);showN(dir==='in'?'Stock received ✓':'Usage logged ✓');setAddS(null);setNewS({sku:'Original',cans:'',slabs:'',cat:'purchase',note:''});};
+const doAddSale=()=>{if(!newSale.buyer||(!newSale.cans&&!newSale.slabs))return;const cans=(+newSale.cans||0)+(+newSale.slabs||0)*24;const u=[{id:Date.now()+'',date:TODAY,...newSale,cans:+newSale.cans||0,slabs:+newSale.slabs||0,totalCans:cans,price:+newSale.price||0},...sales];setSales(u);sts('tilt-sales',u);// also log as stock-out
+const so=[{id:'so'+Date.now(),date:TODAY,dir:'out',sku:newSale.sku,cans:+newSale.cans||0,slabs:+newSale.slabs||0,cat:'sale',note:'Sale to '+newSale.buyer},...slog];setSlog(so);sts('stock-log',so);showN('Sale recorded — '+cans+' cans to '+newSale.buyer);setNewSale({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});setAddSale(false);};
+const delSale=id=>{const u=sales.filter(s=>s.id!==id);setSales(u);sts('tilt-sales',u);};
+const addSku=()=>{if(!newSkuName.trim()||skus.includes(newSkuName.trim()))return;const u=[...skus,newSkuName.trim()];setSkus(u);sts('tilt-skus',u);setNewSkuName('');setAddSkuMode(false);showN('SKU added: '+newSkuName.trim());};
+const delSku=s=>{const u=skus.filter(x=>x!==s);setSkus(u);sts('tilt-skus',u);};;
 const saveMCfg=()=>{const u={rd:mcd.rd||mCfg.rd,rn:mcd.rn||mCfg.rn,km:+mcd.km||mCfg.km};setMCfg(u);sts('mara-cfg',u);if(mcd.sw||mcd.gw){const b={sw:+mcd.sw||base.sw,gw:+mcd.gw||base.gw};setBase(b);sts('fit-base',b);}setMSetup(false);showN('Training setup saved');};
 const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');};
 const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
@@ -1492,40 +1511,125 @@ const tTilt=()=>el('div',null,
     ))
   ),
   el('div',{className:'card'},
-    el('div',{className:'ph'},PT('Live Stock'),
-      el('div',{style:{display:'flex',gap:6}},
-        Btn('+ Receive Stock',()=>setAddS(addS==='in'?null:'in'),'bg',{fontSize:10}),
-        Btn('↓ Log Usage',()=>setAddS(addS==='out'?null:'out'),'',{fontSize:10})
+    // ── Header + action buttons ─────────────────────────────────
+    el('div',{className:'ph',style:{flexWrap:'wrap',gap:8}},
+      PT('Stock Management'),
+      el('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+        Btn('+ Stock In',()=>setAddS(addS==='in'?null:'in'),'bg',{fontSize:11}),
+        Btn('↓ Stock Out',()=>setAddS(addS==='out'?null:'out'),'',{fontSize:11}),
+        Btn('💰 Log Sale',()=>{setAddSale(!addSale);setAddS(null);},addSale?'br2':'bb',{fontSize:11})
       )
     ),
-    el('div',{style:{display:'flex',gap:20,alignItems:'flex-end',marginBottom:16,flexWrap:'wrap'}},
-      el('div',null,Lbl('Cans in stock'),el('div',{className:'stock-num',style:{color:'var(--go)'}},curStock.toLocaleString())),
-      el('div',null,Lbl('Slabs equiv'),el('div',{style:{fontSize:28,fontWeight:700,color:'var(--t2)'}},curSlabs)),
-      el('div',null,Lbl('Used for Marketing'),el('div',{style:{fontSize:28,fontWeight:700,color:'var(--rd2)'}},mktgUsed.toLocaleString())),
-      el('div',{className:'crd',style:{alignSelf:'flex-start',fontSize:11,color:'var(--t3)'}},el('div',null,'1 slab = 24 cans'),el('div',null,'Remaining: '+curSlabs+' slabs'))
+
+    // ── Summary row ─────────────────────────────────────────────
+    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}},
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--go)'}},curStock.toLocaleString()),el('div',{className:'scl'},'Total Cans')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--t2)'}},curSlabs),el('div',{className:'scl'},'Slabs')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'#E1306C'}},totalSold),el('div',{className:'scl'},'Sold')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},mktgUsed),el('div',{className:'scl'},'Marketing'))
     ),
-    addS&&el('div',{style:{background:addS==='in'?'#F0FDF4':'#FFF7ED',border:'1px solid '+(addS==='in'?'#A7F3D0':'#F0E0B0'),borderRadius:10,padding:14,marginBottom:12}},
-      el('div',{style:{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:addS==='in'?'var(--gn)':'var(--go)',marginBottom:10}},addS==='in'?'Receive Stock':'Log Marketing / Sampling Usage'),
-      G2([
-        FR('Cans',el('input',{className:'ipt',type:'number',value:newS.cans,onChange:e=>setNewS(p=>({...p,cans:e.target.value})),placeholder:'0'})),
-        FR('Slabs',el('input',{className:'ipt',type:'number',value:newS.slabs,onChange:e=>setNewS(p=>({...p,slabs:e.target.value})),placeholder:'0'})),
-        FR('Category',el('select',{className:'ipt',value:newS.cat,onChange:e=>setNewS(p=>({...p,cat:e.target.value}))},...(addS==='in'?SCI:SCO).map(c=>el('option',{key:c,value:c.toLowerCase()},c)))),
-        FR(addS==='in'?'Reference / PO#':'Event / Influencer',el('input',{className:'ipt',value:newS.note,onChange:e=>setNewS(p=>({...p,note:e.target.value})),placeholder:addS==='in'?'PO-1234':'Gym activation / @handle'}))
-      ]),
-      Btn(addS==='in'?'Confirm Receipt':'Log Usage',()=>doStock(addS),'bg')
-    ),
-    el('div',{className:'tbl-x',style:{marginTop:4}},
-      el('div',{style:{display:'grid',gridTemplateColumns:'80px 60px 55px 1fr 1fr',padding:'5px 4px',fontSize:9,fontWeight:700,letterSpacing:1.5,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:360}},
-        el('div',null,'DATE'),el('div',null,'CANS'),el('div',null,'SLABS'),el('div',null,'CAT'),el('div',null,'NOTE')
+
+    // ── Per-SKU breakdown ───────────────────────────────────────
+    el('div',{style:{marginBottom:16}},
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)'}},'Stock by SKU'),
+        el('button',{onClick:()=>setAddSkuMode(!addSkuMode),style:{fontSize:10,background:'transparent',border:'1px solid var(--br)',borderRadius:6,padding:'3px 8px',cursor:'pointer',color:'var(--t3)'}},addSkuMode?'Cancel':'+ SKU')
       ),
-      slog.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'10px'}},'No stock movements — use buttons above to start tracking'),
-      ...slog.slice(0,12).map(e=>el('div',{key:e.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'80px 60px 55px 1fr 1fr',gap:0,borderRadius:6,minWidth:360}},
-        el('span',{style:{fontSize:11,color:'var(--t3)'}},e.date),
-        el('span',{style:{fontSize:12,fontWeight:700,color:e.dir==='in'?'var(--gn)':'var(--rd2)'}},e.dir==='in'?'+':'-',(+e.cans||0)),
-        el('span',{style:{fontSize:12,color:e.dir==='in'?'var(--gn)':'var(--rd2)'}},e.slabs?(e.dir==='in'?'+':'-')+(+e.slabs||0):'—'),
-        el('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:99,background:e.dir==='in'?'#D1FAE5':'#FEE2E2',color:e.dir==='in'?'#065F46':'#991B1B',fontWeight:600,alignSelf:'center',justifySelf:'start'}},e.cat),
-        el('span',{style:{fontSize:12,color:'var(--t2)'}},e.note||'')
-      ))
+      addSkuMode&&el('div',{style:{display:'flex',gap:6,marginBottom:8}},
+        el('input',{className:'ipt',value:newSkuName,onChange:e=>setNewSkuName(e.target.value),onKeyDown:e=>e.key==='Enter'&&addSku(),placeholder:'SKU name e.g. Mango Ice',autoFocus:true}),
+        Btn('Add',addSku,'bg',{padding:'6px 14px'})
+      ),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},
+        ...skus.map(sku=>{
+          const bal=skuBal(sku);
+          return el('div',{key:sku,style:{display:'flex',alignItems:'center',gap:6,background:'var(--cd)',borderRadius:10,padding:'8px 12px',flex:'1 1 120px',minWidth:110}},
+            el('div',{style:{flex:1}},
+              el('div',{style:{fontSize:11,fontWeight:700,color:'var(--tx)',marginBottom:2}},sku),
+              el('div',{style:{fontSize:18,fontWeight:800,color:bal>0?'var(--go)':bal<0?'var(--rd2)':'var(--t3)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},bal),
+              el('div',{style:{fontSize:9,color:'var(--t3)',marginTop:1}},Math.floor(bal/24)+' slabs')
+            ),
+            el('button',{onClick:()=>delSku(sku),style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:13,padding:2,lineHeight:1,flexShrink:0}},'×')
+          );
+        })
+      )
+    ),
+
+    // ── Stock In form ────────────────────────────────────────────
+    addS==='in'&&el('div',{style:{background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:10,padding:14,marginBottom:12}},
+      el('div',{style:{fontWeight:700,fontSize:13,color:'var(--gn)',marginBottom:10,textTransform:'uppercase',letterSpacing:1.5}},'📦 Receive Stock'),
+      G2([
+        FR('SKU',el('select',{className:'ipt',value:newS.sku,onChange:e=>setNewS(p=>({...p,sku:e.target.value}))},skus.map(s=>el('option',{key:s,value:s},s)))),
+        FR('Category',el('select',{className:'ipt',value:newS.cat,onChange:e=>setNewS(p=>({...p,cat:e.target.value}))},SCI.map(c=>el('option',{key:c,value:c.toLowerCase()},c)))),
+        FR('Cans',el('input',{className:'ipt',type:'number',value:newS.cans,onChange:e=>setNewS(p=>({...p,cans:e.target.value})),placeholder:'0'})),
+        FR('Slabs (×24)',el('input',{className:'ipt',type:'number',value:newS.slabs,onChange:e=>setNewS(p=>({...p,slabs:e.target.value})),placeholder:'0'})),
+        FR('Reference / PO#',el('input',{className:'ipt',value:newS.note,onChange:e=>setNewS(p=>({...p,note:e.target.value})),placeholder:'PO-1234 or supplier name'}))
+      ]),
+      el('div',{style:{marginTop:4}},Btn('Confirm Stock In',()=>doStock('in'),'bg'))
+    ),
+
+    // ── Stock Out form ───────────────────────────────────────────
+    addS==='out'&&el('div',{style:{background:'#FFF7ED',border:'1px solid #F0E0B0',borderRadius:10,padding:14,marginBottom:12}},
+      el('div',{style:{fontWeight:700,fontSize:13,color:'var(--go)',marginBottom:10,textTransform:'uppercase',letterSpacing:1.5}},'📤 Stock Out'),
+      G2([
+        FR('SKU',el('select',{className:'ipt',value:newS.sku,onChange:e=>setNewS(p=>({...p,sku:e.target.value}))},skus.map(s=>el('option',{key:s,value:s},s)))),
+        FR('Category',el('select',{className:'ipt',value:newS.cat,onChange:e=>setNewS(p=>({...p,cat:e.target.value}))},SCO.map(c=>el('option',{key:c,value:c.toLowerCase()},c)))),
+        FR('Cans',el('input',{className:'ipt',type:'number',value:newS.cans,onChange:e=>setNewS(p=>({...p,cans:e.target.value})),placeholder:'0'})),
+        FR('Slabs (×24)',el('input',{className:'ipt',type:'number',value:newS.slabs,onChange:e=>setNewS(p=>({...p,slabs:e.target.value})),placeholder:'0'})),
+        FR('Note / Event',el('input',{className:'ipt',value:newS.note,onChange:e=>setNewS(p=>({...p,note:e.target.value})),placeholder:'Gym activation / @handle'}))
+      ]),
+      el('div',{style:{marginTop:4}},Btn('Log Stock Out',()=>doStock('out'),''))
+    ),
+
+    // ── Sale form ────────────────────────────────────────────────
+    addSale&&el('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:10,padding:14,marginBottom:12}},
+      el('div',{style:{fontWeight:700,fontSize:13,color:'#1D4ED8',marginBottom:10,textTransform:'uppercase',letterSpacing:1.5}},'💰 Log a Sale'),
+      G2([
+        FR('Sold To',el('input',{className:'ipt',value:newSale.buyer,onChange:e=>setNewSale(p=>({...p,buyer:e.target.value})),placeholder:'Customer / business name',autoFocus:true})),
+        FR('SKU',el('select',{className:'ipt',value:newSale.sku,onChange:e=>setNewSale(p=>({...p,sku:e.target.value}))},skus.map(s=>el('option',{key:s,value:s},s)))),
+        FR('Cans',el('input',{className:'ipt',type:'number',value:newSale.cans,onChange:e=>setNewSale(p=>({...p,cans:e.target.value})),placeholder:'0'})),
+        FR('Slabs (×24)',el('input',{className:'ipt',type:'number',value:newSale.slabs,onChange:e=>setNewSale(p=>({...p,slabs:e.target.value})),placeholder:'0'})),
+        FR('Sale Price ($)',el('input',{className:'ipt',type:'number',step:'0.01',value:newSale.price,onChange:e=>setNewSale(p=>({...p,price:e.target.value})),placeholder:'0.00'})),
+        FR('Notes',el('input',{className:'ipt',value:newSale.note,onChange:e=>setNewSale(p=>({...p,note:e.target.value})),placeholder:'Invoice #, payment method...'}))
+      ]),
+      el('div',{style:{marginTop:4}},Btn('Save Sale',doAddSale,'bb'))
+    ),
+
+    // ── Sales log ────────────────────────────────────────────────
+    sales.length>0&&el('div',{style:{marginBottom:16}},
+      el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},
+        'Sales — '+totalSold+' cans · '+FMT(sales.reduce((s,e)=>s+e.price,0))+' total'
+      ),
+      el('div',{className:'tbl-x'},
+        el('div',{style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 24px',padding:'4px 6px',fontSize:9,fontWeight:700,letterSpacing:1.2,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:380}},
+          ['Date','Buyer','SKU','Cans','Price',''].map(h=>el('div',{key:h},h))
+        ),
+        ...sales.slice(0,20).map(s=>el('div',{key:s.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 24px',alignItems:'center',borderRadius:6,minWidth:380}},
+          el('span',{style:{fontSize:11,color:'var(--t3)'}},s.date),
+          el('span',{style:{fontSize:12,fontWeight:600,color:'var(--tx)'}},s.buyer),
+          el('span',{style:{fontSize:10,background:'#DBEAFE',color:'#1D4ED8',padding:'2px 6px',borderRadius:99,fontWeight:700,justifySelf:'start'}},s.sku),
+          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--go)'}},s.totalCans),
+          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--gn)'}},s.price?FMT(s.price):'—'),
+          el('button',{onClick:()=>delSale(s.id),style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:13,padding:0,lineHeight:1}},'×')
+        ))
+      )
+    ),
+
+    // ── Full stock movement log ──────────────────────────────────
+    el('div',null,
+      el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},'All Stock Movements'),
+      el('div',{className:'tbl-x'},
+        el('div',{style:{display:'grid',gridTemplateColumns:'75px 50px 80px 60px 1fr',padding:'4px 6px',fontSize:9,fontWeight:700,letterSpacing:1.2,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:360}},
+          ['Date','Dir','SKU','Cans','Note / Cat'].map(h=>el('div',{key:h},h))
+        ),
+        slog.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'10px'}},'No stock movements yet'),
+        ...slog.slice(0,20).map(e=>el('div',{key:e.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'75px 50px 80px 60px 1fr',alignItems:'center',borderRadius:6,minWidth:360}},
+          el('span',{style:{fontSize:11,color:'var(--t3)'}},e.date),
+          el('span',{style:{fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:99,background:e.dir==='in'?'#D1FAE5':'#FEE2E2',color:e.dir==='in'?'#065F46':'#991B1B',justifySelf:'start'}},e.dir==='in'?'IN':'OUT'),
+          el('span',{style:{fontSize:11,color:'var(--t2)'}},e.sku||'—'),
+          el('span',{style:{fontSize:12,fontWeight:700,color:e.dir==='in'?'var(--gn)':'var(--rd2)'}},((e.dir==='in'?'+':'-')+((+e.cans||0)+(+e.slabs||0)*24))),
+          el('span',{style:{fontSize:11,color:'var(--t2)'}},e.note||(e.cat||''))
+        ))
+      )
     )
   ),
   el('div',{className:'card'},
