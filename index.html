@@ -742,6 +742,16 @@ const[revGoal,setRevGoal]=useState(()=>stg('rev-goal')||{monthly:'',annual:''});
 const[savedQuotes,setSavedQuotes]=useState(()=>stg('saved-quotes')||['I am building something that lasts.','Discipline today, freedom tomorrow.',"I do what others won't so I can live how others can't."]);
 const[newQuote,setNewQuote]=useState('');
 const[quoteIdx]=useState(()=>Math.floor(Math.random()*3));
+// ── Brand milestones ──
+const[milestones,setMilestones]=useState(()=>stg('milestones')||[]);
+const[addMilestone,setAddMilestone]=useState(false);
+const[newMilestone,setNewMilestone]=useState({date:TODAY,title:'',cat:'business',notes:''});
+// ── Recurring tasks ──
+const[recurringTasks,setRecurringTasks]=useState(()=>stg('recurring-tasks')||[]);
+const[addRec,setAddRec]=useState(false);
+const[newRec,setNewRec]=useState({text:'',freq:'daily',pri:'M'});
+// ── Focus goal ──
+const[focusWeekGoal,setFocusWeekGoal]=useState(()=>stg('focus-week-goal')||20);
 const[protocols,setProtocols]=useState(()=>stg('protocols')||[{id:'reading',label:'Reading — 30 min',xp:20},{id:'language',label:'Language Practice — 15 min',xp:20}]);
 const[addProto,setAddProto]=useState(false);
 const[newProto,setNewProto]=useState({label:'',xp:20});
@@ -782,7 +792,7 @@ const sendNotif=msg=>{
   }
 };
 const prevXP=useRef(0);
-const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','ti-calendar-event','Content'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM'],['gym','ti-dumbbell','Gym'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['habits','ti-layout-grid','Habits'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['stockists','ti-building-store','Stockists'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['review','ti-clipboard-check','Review']];
+const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','ti-calendar-event','Content'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM'],['gym','ti-dumbbell','Gym'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['habits','ti-layout-grid','Habits'],['screentime','ti-device-mobile','Screen'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['stockists','ti-building-store','Stockists'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['review','ti-clipboard-check','Review']];
 const GKEYS=[{k:'yr',l:'Yearly'},{k:'qt',l:'Quarterly'},{k:'mo',l:'Monthly'},{k:'wk',l:'Weekly'},{k:'dy',l:'Daily'}];
 const RC=['Sales','Investment','Grant','Other'];
 const EC=['COGS','Marketing','Operations','Equipment','Salary','Tax','Other'];
@@ -1176,6 +1186,15 @@ const delPb=id=>{const u=pbs.filter(x=>x.id!==id);setPbs(u);sts('pbs',u);};
 const addDecision=()=>{if(!newDec.decision)return;const u=[{id:Date.now()+'', ...newDec},...decisions].slice(0,100);setDecisions(u);sts('decisions',u);setNewDec({decision:'',reasoning:'',date:TODAY,outcome:'',reviewed:false});setAddDec(false);showN('Decision logged');};
 const reviewDec=(id,outcome)=>{const u=decisions.map(x=>x.id===id?{...x,outcome,reviewed:true}:x);setDecisions(u);sts('decisions',u);showN('Decision reviewed');};
 const delDec=id=>{const u=decisions.filter(x=>x.id!==id);setDecisions(u);sts('decisions',u);};
+const addMilestoneItem=()=>{if(!newMilestone.title)return;const u=[{id:Date.now()+'', ...newMilestone},...milestones].sort((a,b)=>b.date>a.date?1:-1);setMilestones(u);sts('milestones',u);setNewMilestone({date:TODAY,title:'',cat:'business',notes:''});setAddMilestone(false);awardXP(50);showN('Milestone logged! +50 XP 🎉');};
+const delMilestone=id=>{const u=milestones.filter(x=>x.id!==id);setMilestones(u);sts('milestones',u);};
+const addRecTask=()=>{if(!newRec.text)return;const u=[...recurringTasks,{id:Date.now()+'', ...newRec}];setRecurringTasks(u);sts('recurring-tasks',u);setNewRec({text:'',freq:'daily',pri:'M'});setAddRec(false);showN('Recurring task added');};
+const delRecTask=id=>{const u=recurringTasks.filter(x=>x.id!==id);setRecurringTasks(u);sts('recurring-tasks',u);};
+// Inject recurring tasks into today's task list if not already there
+const injectRecurring=()=>{const daily=recurringTasks.filter(r=>r.freq==='daily');const weekly=recurringTasks.filter(r=>r.freq==='weekly'&&DOW===1);const toAdd=[...daily,...weekly].filter(r=>!tasks.some(t=>t.recId===r.id));if(!toAdd.length)return;const newTasks=[...tasks,...toAdd.map(r=>({id:Date.now()+'_'+r.id,text:r.text,done:false,pri:r.pri||'M',recId:r.id}))];setTasks(newTasks);sts('tasks-'+TODAY,newTasks);showN(toAdd.length+' recurring task'+(toAdd.length>1?'s':'')+' added');};
+// Focus week stats
+const focusWeekMins=pSessions.filter(s=>{try{const d=new Date(s.date+'T12:00');const ws=new Date();ws.setDate(ws.getDate()-DOW);return d>=ws;}catch{return false;}}).reduce((s,x)=>s+(x.duration||25),0);
+const focusWeekHrs=(focusWeekMins/60).toFixed(1);
 // Sleep
 const doAddSleep=()=>{if(!newSleep.bed||!newSleep.wake)return;const[bh,bm]=(newSleep.bed||'00:00').split(':').map(Number);const[wh,wm]=(newSleep.wake||'00:00').split(':').map(Number);let hrs=wh-bh+(wm-bm)/60;if(hrs<0)hrs+=24;const u=[{id:Date.now()+'',date:newSleep.date||TODAY,...newSleep,hours:+hrs.toFixed(1)},...sleepLog].slice(0,90);setSleepLog(u);sts('sleep-log',u);setNewSleep({date:TODAY,bed:'',wake:'',quality:3,energy:3,notes:''});setAddSleep(false);showN('Sleep logged — '+hrs.toFixed(1)+'h');};
 // Measurements
@@ -2153,6 +2172,71 @@ const tTilt=()=>el('div',null,
         )
       );
     })
+  ),
+  // ── Weekly KPI Snapshot ──────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Weekly KPI Snapshot'),
+      Btn('📸 Save This Week',saveKpiSnap,'bg',{fontSize:10})
+    ),
+    el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:10}},'Save a snapshot each week to track progress. Compares this week vs last.'),
+    (()=>{
+      const prev=kpiSnaps[0];
+      const pprev=kpiSnaps[1];
+      const delta=(curr,key)=>{if(!prev)return null;const d=curr-(prev[key]||0);return d;};
+      const rows=[
+        ['💰','Month Revenue',FMT(mRev),prev?delta(mRev,'rev'):null,'$'],
+        ['📦','Cans Out (all time)',curStock+'',prev?null:null,null],
+        ['📱','IG Followers',met.ig,prev?delta(met.ig,'ig'):null,''],
+        ['🎵','TikTok Followers',met.tt,prev?delta(met.tt,'tt'):null,''],
+        ['📝','Posts (total)',contentPosts,prev?delta(contentPosts,'posts'):null,''],
+      ];
+      return el('div',{style:{display:'flex',flexDirection:'column',gap:8}},
+        ...rows.map(([ic,label,curr,diff,prefix])=>
+          el('div',{key:label,style:{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid var(--br)'}},
+            el('span',{style:{fontSize:16,width:24,flexShrink:0}},ic),
+            el('div',{style:{flex:1,fontSize:12,color:'var(--t2)'}},label),
+            el('div',{style:{fontSize:14,fontWeight:700,color:'var(--tx)'}},curr),
+            diff!==null&&el('div',{style:{fontSize:11,fontWeight:600,color:diff>0?'var(--gn)':diff<0?'var(--rd2)':'var(--t3)',minWidth:60,textAlign:'right'}},diff>0?'+'+(prefix||'')+diff:(prefix||'')+diff)
+          )
+        ),
+        kpiSnaps.length>0&&el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:4}},'Last snapshot: '+kpiSnaps[0].date+' · '+kpiSnaps.length+' saved')
+      );
+    })()
+  ),
+  // ── Brand Milestone Timeline ──────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Brand Milestones'),
+      Btn(addMilestone?'Cancel':'+ Add',()=>setAddMilestone(!addMilestone),'bg',{fontSize:10})
+    ),
+    addMilestone&&el('div',{style:{background:'#FFF7ED',border:'1px solid #F0E0B0',borderRadius:8,padding:14,marginBottom:12}},
+      G2([
+        FR('Milestone',el('input',{className:'ipt',value:newMilestone.title,onChange:e=>setNewMilestone(p=>({...p,title:e.target.value})),placeholder:'e.g. First stockist, 1K followers, $10K month'})),
+        FR('Category',el('select',{className:'ipt',value:newMilestone.cat,onChange:e=>setNewMilestone(p=>({...p,cat:e.target.value}))},['business','social','personal','health','financial'].map(c=>el('option',{key:c,value:c},c.charAt(0).toUpperCase()+c.slice(1))))),
+        FR('Date',el('input',{className:'ipt',type:'date',value:newMilestone.date,onChange:e=>setNewMilestone(p=>({...p,date:e.target.value}))})),
+        FR('Notes',el('input',{className:'ipt',value:newMilestone.notes,onChange:e=>setNewMilestone(p=>({...p,notes:e.target.value})),placeholder:'Context, how it felt...'}))
+      ]),
+      Btn('Log Milestone +50 XP',addMilestoneItem,'bg')
+    ),
+    milestones.length===0&&!addMilestone&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 0'}},'Log every win — this becomes your brand\'s history'),
+    milestones.length>0&&el('div',{style:{position:'relative',paddingLeft:20}},
+      el('div',{style:{position:'absolute',left:7,top:0,bottom:0,width:2,background:'var(--br)'}}),
+      ...milestones.map((m,i)=>{
+        const catColor={business:'var(--go)',social:'#E1306C',personal:'var(--pu)',health:'var(--gn)',financial:'var(--bl2)'}[m.cat]||'var(--t3)';
+        return el('div',{key:m.id,style:{position:'relative',paddingLeft:16,marginBottom:14}},
+          el('div',{style:{position:'absolute',left:-6,top:4,width:14,height:14,borderRadius:99,background:catColor,border:'2px solid #fff',boxShadow:'0 0 0 1px '+catColor}}),
+          el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}},
+            el('div',null,
+              el('div',{style:{fontSize:13,fontWeight:700,color:'var(--tx)',lineHeight:1.3}},m.title),
+              m.notes&&el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2,lineHeight:1.4}},m.notes),
+              el('div',{style:{fontSize:10,color:catColor,fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginTop:3}},m.date+' · '+m.cat)
+            ),
+            Xb(()=>delMilestone(m.id))
+          )
+        );
+      })
+    )
   ),
   ...GKEYS.map(({k,l})=>el('div',{key:k,className:'card',style:{padding:0,overflow:'hidden'}},
     el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',cursor:'pointer',background:expd[k]?'#FFFBEB':'var(--bg)',borderRadius:12},onClick:()=>setExpd(p=>({...p,[k]:!p[k]}))},
@@ -3476,6 +3560,57 @@ const tPlan=()=>{
         el('button',{onClick:()=>{const u=savedQuotes.filter((_,j)=>j!==i);setSavedQuotes(u);sts('saved-quotes',u);},style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:16,padding:'0 4px',lineHeight:1}},'×')
       )
     )
+  ),
+
+  // ── Recurring Tasks ───────────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Recurring Tasks'),
+      Btn(addRec?'Cancel':'+ Add',()=>setAddRec(!addRec),'bg',{fontSize:10})
+    ),
+    el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:10}},'Daily tasks auto-inject into Today\'s Tasks each morning. Weekly tasks inject on Mondays.'),
+    addRec&&el('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:12,marginBottom:12}},
+      el('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}},
+        el('div',{style:{flex:2,minWidth:140}},FR('Task',el('input',{className:'ipt',value:newRec.text,onChange:e=>setNewRec(p=>({...p,text:e.target.value})),onKeyDown:e=>e.key==='Enter'&&addRecTask(),placeholder:'e.g. Check DMs, Reply emails',autoFocus:true}))),
+        el('div',{style:{flex:1}},FR('Frequency',el('select',{className:'ipt',value:newRec.freq,onChange:e=>setNewRec(p=>({...p,freq:e.target.value}))},el('option',{value:'daily'},'Daily'),el('option',{value:'weekly'},'Weekly (Mon)')))),
+        el('div',{style:{flex:1}},FR('Priority',el('select',{className:'ipt',value:newRec.pri,onChange:e=>setNewRec(p=>({...p,pri:e.target.value}))},el('option',{value:'H'},'High'),el('option',{value:'M'},'Med'),el('option',{value:'L'},'Low')))),
+        Btn('Add',addRecTask,'bg',{alignSelf:'flex-end',padding:'8px 14px'})
+      )
+    ),
+    recurringTasks.length>0&&el('div',{style:{marginBottom:10}},
+      Btn('↻ Inject into Today',injectRecurring,'bg',{fontSize:11,marginBottom:8}),
+      ...recurringTasks.map(r=>
+        el('div',{key:r.id,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--br)'}},
+          el('span',{style:{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:99,background:r.freq==='daily'?'#DBEAFE':'#F5F3FF',color:r.freq==='daily'?'#1D4ED8':'#5B21B6'}},r.freq==='daily'?'Daily':'Weekly'),
+          el('span',{style:{flex:1,fontSize:13,color:'var(--tx)'}},r.text),
+          el('span',{className:'bdg b'+r.pri,style:{fontSize:9}},r.pri==='H'?'High':r.pri==='M'?'Med':'Low'),
+          Xb(()=>delRecTask(r.id))
+        )
+      )
+    ),
+    recurringTasks.length===0&&!addRec&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px 0'}},'No recurring tasks yet')
+  ),
+
+  // ── Focus Time Goal ───────────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      el('div',null,
+        el('div',{className:'pt'},'🎯 Weekly Focus Goal'),
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},'Week of '+WEEK_KEY)
+      ),
+      el('div',{style:{display:'flex',alignItems:'center',gap:8}},
+        el('div',{style:{fontSize:13,fontWeight:700,color:+focusWeekHrs>=focusWeekGoal?'var(--gn)':'var(--go)'}},focusWeekHrs+'h / '+focusWeekGoal+'h'),
+        el('input',{type:'number',className:'ipt',style:{width:60,fontSize:12},value:focusWeekGoal,onChange:e=>{const v=+e.target.value||20;setFocusWeekGoal(v);sts('focus-week-goal',v);},min:1,max:80})
+      )
+    ),
+    el('div',{style:{height:10,borderRadius:99,background:'var(--br)',overflow:'hidden',marginBottom:6}},
+      el('div',{style:{height:'100%',borderRadius:99,background:+focusWeekHrs>=focusWeekGoal?'var(--gn)':'var(--go)',width:Math.min(100,focusWeekHrs/focusWeekGoal*100)+'%',transition:'width .4s'}})
+    ),
+    el('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+      pSessions.filter(s=>{try{const d=new Date(s.date+'T12:00');const ws=new Date();ws.setDate(ws.getDate()-DOW);return d>=ws;}catch{return false;}}).map(s=>
+        el('div',{key:s.id,style:{fontSize:10,background:'var(--cd)',borderRadius:6,padding:'3px 8px',color:'var(--t2)'}},s.date.slice(8)+' · '+s.duration+'min'+(s.note?' — '+s.note:''))
+      )
+    )
   )
 
 );};
@@ -4046,6 +4181,56 @@ const tGym=()=>{
   );
 };
 
+// ─── SCREEN TIME + CONTENT CONSISTENCY (appended to Wellness) ───
+const tScreenTime=()=>el('div',null,
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Screen Time Tracker'),
+      el('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+        el('div',{style:{fontSize:11,color:'var(--t3)'}},'Goal:'),
+        el('input',{type:'number',className:'ipt',style:{width:60,fontSize:11},value:screenGoal,onChange:e=>saveScreenGoal(e.target.value),placeholder:'3h'}),
+        el('span',{style:{fontSize:11,color:'var(--t3)'}},'hrs/day')
+      )
+    ),
+    el('div',{style:{marginBottom:14}},
+      G2([
+        FR('Date',el('input',{className:'ipt',type:'date',value:newScreen.date,onChange:e=>setNewScreen(p=>({...p,date:e.target.value}))})),
+        FR('Total screen time (hrs)',el('input',{className:'ipt',type:'number',step:'.5',value:newScreen.phone,onChange:e=>setNewScreen(p=>({...p,phone:e.target.value})),placeholder:'4.5'})),
+        FR('Productive (hrs)',el('input',{className:'ipt',type:'number',step:'.5',value:newScreen.productive,onChange:e=>setNewScreen(p=>({...p,productive:e.target.value})),placeholder:'1.5'})),
+        FR('Doom scroll (hrs)',el('input',{className:'ipt',type:'number',step:'.5',value:newScreen.doom,onChange:e=>setNewScreen(p=>({...p,doom:e.target.value})),placeholder:'1.0'}))
+      ]),
+      el('div',{style:{marginTop:8}},Btn('Log Screen Time',doAddScreen,'bg'))
+    ),
+    screenLog.length>0&&el('div',null,
+      el('div',{style:{display:'flex',alignItems:'flex-end',gap:3,height:80,marginBottom:8}},
+        ...screenLog.slice(0,14).reverse().map(s=>{
+          const goal=+screenGoal||4;
+          const h=Math.round((s.phone/goal)*70)+2;
+          const ph=Math.round((s.productive/s.phone)*h)||0;
+          return el('div',{key:s.id,style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'default'},title:s.date+': '+s.phone+'h total'},
+            el('div',{style:{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72,gap:1}},
+              el('div',{style:{width:'100%',background:s.phone>goal?'var(--rd2)':'var(--go)',height:Math.max(2,h-ph)+'px',borderRadius:'2px 2px 0 0',opacity:.7}}),
+              ph>0&&el('div',{style:{width:'100%',background:'var(--gn)',height:ph+'px'}})
+            ),
+            el('div',{style:{fontSize:7,color:'var(--t3)'}},s.date.slice(8))
+          );
+        })
+      ),
+      el('div',{style:{display:'flex',gap:12,fontSize:10,color:'var(--t3)',marginBottom:10}},
+        el('span',null,el('span',{style:{color:'var(--go)'}},'■'),' Total'),
+        el('span',null,el('span',{style:{color:'var(--gn)'}},'■'),' Productive')
+      ),
+      screenLog.slice(0,7).map(s=>el('div',{key:'r'+s.id,className:'fin-row'},
+        el('span',{style:{fontSize:11,color:'var(--t3)',width:88,flexShrink:0}},s.date),
+        el('span',{style:{fontSize:13,fontWeight:700,color:s.phone>(+screenGoal||4)?'var(--rd2)':'var(--go)',width:50}},s.phone+'h'),
+        el('span',{style:{fontSize:12,color:'var(--t2)'}},'📱'+s.productive+'h productive · 💀'+s.doom+'h doom'),
+        Xb(()=>delScreen(s.id))
+      ))
+    ),
+    screenLog.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px 0'}},'Log daily screen time — most people are shocked by how much it is')
+  )
+);
+
 // ─── MORNING ROUTINE (Feature 1) ────────────────────────────────
 const tMorning=()=>{
   const allDone=morning.length>0&&morning.every(m=>m.done);
@@ -4111,6 +4296,56 @@ const tWellness=()=>{
         el('span',{style:{flex:1,fontSize:12,color:'var(--t3)',marginLeft:8}},w.note||''),
         Xb(()=>delWell(w.id))
       ))
+    ),
+    // ── 30-day Mood & Energy Trend ────────────────────────────────
+    el('div',{className:'card'},
+      el('div',{className:'ph'},PT('30-Day Mood & Energy Trend')),
+      (()=>{
+        const days30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const ds=d.toISOString().split('T')[0];const m=stg('mood-'+ds)||{};return{ds,mood:m.mood||0,energy:m.energy||0,label:ds.slice(8)};});
+        const hasMood=days30.some(d=>d.mood>0);
+        if(!hasMood)return el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'20px 0'}},'Log mood & energy daily on the Home tab — chart builds over time');
+        const maxV=5;
+        return el('div',null,
+          el('div',{style:{position:'relative',height:80,marginBottom:4}},
+            el('svg',{width:'100%',height:80,style:{overflow:'visible'}},
+              el('polyline',{points:days30.map((d,i)=>((i/(days30.length-1))*100)+'% '+(d.mood>0?(1-(d.mood-1)/(maxV-1))*70+5:null)).filter(Boolean).join(', '),fill:'none',stroke:'var(--go)',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'}),
+              el('polyline',{points:days30.map((d,i)=>((i/(days30.length-1))*100)+'% '+(d.energy>0?(1-(d.energy-1)/(maxV-1))*70+5:null)).filter(Boolean).join(', '),fill:'none',stroke:'var(--bl2)',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'})
+            )
+          ),
+          el('div',{style:{display:'flex',gap:4,justifyContent:'space-between',marginBottom:6}},
+            ...[0,6,13,20,29].map(i=>el('div',{key:i,style:{fontSize:8,color:'var(--t3)'}},days30[i]?.label||''))
+          ),
+          el('div',{style:{display:'flex',gap:12,fontSize:10,color:'var(--t3)'}},
+            el('span',null,el('span',{style:{color:'var(--go)'}},'— '),'Mood'),
+            el('span',null,el('span',{style:{color:'var(--bl2)'}},'— '),'Energy')
+          )
+        );
+      })()
+    ),
+    // ── 30-day Daily Score Trend ──────────────────────────────────
+    el('div',{className:'card'},
+      el('div',{className:'ph'},PT('30-Day Performance Score Trend')),
+      (()=>{
+        const days30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const ds=d.toISOString().split('T')[0];const t=stg('tasks-'+ds)||[];const h=stg('habits-'+ds)||{};const f=stg('fit-'+ds)||{};const j=stg('journal-'+ds)||{};const p=stg('protocols')||[];const s=calcScore(t,h,f,j,p);return{ds,score:s,label:ds.slice(8)};});
+        const hasData=days30.some(d=>d.score>0);
+        if(!hasData)return el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'20px 0'}},'Complete daily tasks to build your score history');
+        const avgScore=Math.round(days30.filter(d=>d.score>0).reduce((s,d)=>s+d.score,0)/Math.max(days30.filter(d=>d.score>0).length,1));
+        return el('div',null,
+          el('div',{style:{position:'relative',height:80,marginBottom:4}},
+            el('svg',{width:'100%',height:80,style:{overflow:'visible'}},
+              el('polyline',{points:days30.map((d,i)=>((i/(days30.length-1))*100)+'% '+(d.score>0?(1-d.score/100)*70+5:null)).filter(Boolean).join(', '),fill:'none',stroke:'var(--gn)',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'}),
+              el('line',{x1:'0%',y1:(1-avgScore/100)*70+5,x2:'100%',y2:(1-avgScore/100)*70+5,stroke:'rgba(0,0,0,.15)',strokeWidth:1,strokeDasharray:'4,4'})
+            )
+          ),
+          el('div',{style:{display:'flex',gap:4,justifyContent:'space-between',marginBottom:6}},
+            ...[0,6,13,20,29].map(i=>el('div',{key:i,style:{fontSize:8,color:'var(--t3)'}},days30[i]?.label||''))
+          ),
+          el('div',{style:{display:'flex',gap:12,fontSize:10,color:'var(--t3)',alignItems:'center'}},
+            el('span',null,el('span',{style:{color:'var(--gn)'}},'— '),'Daily Score'),
+            el('span',null,'30d avg: ',el('span',{style:{fontWeight:700,color:'var(--gn)'}},avgScore+'%'))
+          )
+        );
+      })()
     )
   );
 };
@@ -4373,6 +4608,49 @@ const tContentCal=()=>{
           );
         })
       )
+    ),
+    // ── Content Consistency Score ────────────────────────────────
+    el('div',{className:'card'},
+      el('div',{className:'ph'},PT('Posting Consistency')),
+      (()=>{
+        const platforms=['Instagram','TikTok'];
+        const last30days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
+        const last7days=last30days.slice(0,7);
+        return el('div',null,
+          el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}},
+            ...platforms.map(plat=>{
+              const planned30=contentCal.filter(c=>last30days.includes(c.date)&&c.platform===plat).length;
+              const posted30=contentCal.filter(c=>last30days.includes(c.date)&&c.platform===plat&&c.status==='posted').length;
+              const planned7=contentCal.filter(c=>last7days.includes(c.date)&&c.platform===plat).length;
+              const posted7=contentCal.filter(c=>last7days.includes(c.date)&&c.platform===plat&&c.status==='posted').length;
+              const pct30=planned30>0?Math.round(posted30/planned30*100):0;
+              const pct7=planned7>0?Math.round(posted7/planned7*100):0;
+              const col=pct7>=80?'var(--gn)':pct7>=50?'var(--go)':'var(--rd2)';
+              return el('div',{key:plat,style:{background:'var(--cd)',borderRadius:10,padding:'12px 14px'}},
+                el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},plat),
+                el('div',{style:{fontSize:28,fontWeight:800,color:col,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},pct7+'%'),
+                el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2,marginBottom:8}},'This week: '+posted7+'/'+planned7+' planned'),
+                el('div',{style:{height:6,borderRadius:99,background:'var(--br)',overflow:'hidden'}},
+                  el('div',{style:{height:'100%',borderRadius:99,background:col,width:pct7+'%',transition:'width .4s'}})
+                ),
+                el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:4}},'30d: '+posted30+'/'+planned30+' posted ('+pct30+'%)')
+              );
+            })
+          ),
+          el('div',{style:{display:'flex',gap:3,marginBottom:4}},
+            ...last30days.slice(0,30).reverse().map(ds=>{
+              const postedToday=contentCal.filter(c=>c.date===ds&&c.status==='posted').length>0;
+              const plannedToday=contentCal.filter(c=>c.date===ds).length>0;
+              return el('div',{key:ds,style:{flex:1,height:14,borderRadius:2,background:postedToday?'var(--gn)':plannedToday?'var(--go)':'var(--br)'},title:ds});
+            })
+          ),
+          el('div',{style:{display:'flex',gap:12,fontSize:10,color:'var(--t3)'}},
+            el('span',null,el('span',{style:{color:'var(--gn)'}},'■'),' Posted'),
+            el('span',null,el('span',{style:{color:'var(--go)'}},'■'),' Planned'),
+            el('span',null,el('span',{style:{color:'var(--br)'}},'■'),' Empty')
+          )
+        );
+      })()
     )
   );
 };
@@ -4411,19 +4689,19 @@ const screenCard=()=>{
   );
 };
 
-const renders={home:tHome,tilt:tTilt,training:tTraining,halfmarathon:tHalfMarathon,gym:tGym,money:tMoney,plan:tPlan,learn:tLearn,people:tPeople,notes:tNotes,reflect:tReflect,journal:tJournal,sync:tSync,morning:tMorning,wellness:tWellness,review:tReview,stockists:tStockists,'content-cal':tContentCal,habits:tHabits};
+const renders={home:tHome,tilt:tTilt,training:tTraining,halfmarathon:tHalfMarathon,gym:tGym,money:tMoney,plan:tPlan,learn:tLearn,people:tPeople,notes:tNotes,reflect:tReflect,journal:tJournal,sync:tSync,morning:tMorning,wellness:tWellness,review:tReview,stockists:tStockists,'content-cal':tContentCal,habits:tHabits,screentime:tScreenTime};
 const ALL_TABS=[...TABS,['sync','ti-refresh','Sync']];
 // Sections shown in sidebar — each maps to a set of sub-tabs
 const SECTIONS=[
   {id:'home', icon:'ti-home',   label:'Home',   tabs:['home']},
   {id:'tilt', icon:'ti-bolt',   label:'TILT',   tabs:['tilt','content-cal','stockists']},
-  {id:'train',icon:'ti-run',    label:'Train',  tabs:['training','halfmarathon','gym','morning','wellness']},
+  {id:'train',icon:'ti-run',    label:'Train',  tabs:['training','halfmarathon','gym','morning','wellness','screentime']},
   {id:'money',icon:'ti-coin',   label:'Money',  tabs:['money']},
   {id:'plan', icon:'ti-checklist',label:'Plan',tabs:['plan','learn']},
   {id:'me',   icon:'ti-user',   label:'Me',     tabs:['people','notes','reflect','journal','review']},
 ];
 const TAB_MAP=Object.fromEntries(ALL_TABS.map(t=>[t[0],t]));
-const tabLabel={home:'Home',tilt:'TILT',training:'Training','content-cal':'Content',halfmarathon:'Half Marathon',gym:'Gym',money:'Money',plan:'Plan',learn:'Learn',people:'People',notes:'Notes',reflect:'Reflect',journal:'Journal',sync:'Sync',morning:'Morning',wellness:'Sleep & Wellness',review:'Weekly Review',stockists:'Stockists'};
+const tabLabel={home:'Home',tilt:'TILT',training:'Training','content-cal':'Content',halfmarathon:'Half Marathon',gym:'Gym',money:'Money',plan:'Plan',learn:'Learn',people:'People',notes:'Notes',reflect:'Reflect',journal:'Journal',sync:'Sync',morning:'Morning',wellness:'Sleep & Wellness',review:'Weekly Review',stockists:'Stockists',screentime:'Screen Time',habits:'Habits'};
 // Which section is active based on current tab
 const activeSection=SECTIONS.find(s=>s.tabs.includes(tab))||SECTIONS[0];
 const subTabs=activeSection.tabs.filter(k=>TAB_MAP[k]);
