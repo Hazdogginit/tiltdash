@@ -758,7 +758,7 @@ const sendNotif=msg=>{
   }
 };
 const prevXP=useRef(0);
-const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','ti-calendar-event','Content'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM'],['gym','ti-dumbbell','Gym'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['stockists','ti-building-store','Stockists'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['review','ti-clipboard-check','Review']];
+const TABS=[['home','ti-home','Home'],['tilt','ti-bolt','TILT'],['content-cal','ti-calendar-event','Content'],['training','ti-run','Train'],['halfmarathon','ti-trophy','HM'],['gym','ti-dumbbell','Gym'],['morning','ti-sunrise','Morning'],['wellness','ti-bed','Sleep'],['habits','ti-layout-grid','Habits'],['money','ti-coin','Money'],['plan','ti-calendar-week','Plan'],['learn','ti-book','Learn'],['stockists','ti-building-store','Stockists'],['people','ti-users','People'],['notes','ti-notes','Notes'],['reflect','ti-feather','Reflect'],['journal','ti-notebook','Journal'],['review','ti-clipboard-check','Review']];
 const GKEYS=[{k:'yr',l:'Yearly'},{k:'qt',l:'Quarterly'},{k:'mo',l:'Monthly'},{k:'wk',l:'Weekly'},{k:'dy',l:'Daily'}];
 const RC=['Sales','Investment','Grant','Other'];
 const EC=['COGS','Marketing','Operations','Equipment','Salary','Tax','Other'];
@@ -2005,6 +2005,95 @@ const tTilt=()=>el('div',null,
 );
 
 // ─── TRAINING ──────────────────────────────────────────────────
+// ─── HABIT TRACKER ─────────────────────────────────────────────
+const tHabits=()=>{
+  // Build last 30 days array
+  const days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return d.toISOString().split('T')[0];});
+  const todayDone=protocols.filter(p=>habits[p.id]).length;
+  const todayTotal=protocols.length;
+
+  // Per-protocol streak
+  const protoStreak=id=>{let n=0,d=new Date();for(let i=0;i<365;i++){const ds=d.toISOString().split('T')[0];const h=stg('habits-'+ds);const hit=h?.[id];if(i===0&&!hit){d.setDate(d.getDate()-1);continue;}if(hit){n++;d.setDate(d.getDate()-1);}else break;}return n;};
+
+  // Per-protocol 30-day completion %
+  const protoPct=id=>{const done=days.filter(ds=>{const h=stg('habits-'+ds);return h?.[id];}).length;return Math.round(done/30*100);};
+
+  return el('div',null,
+    // ── Today summary ──────────────────────────────────────────
+    el('div',{className:'card',style:{marginBottom:14}},
+      el('div',{className:'ph'},
+        el('div',null,
+          el('div',{className:'pt'},'Today\'s Habits'),
+          el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},todayDone+' of '+todayTotal+' done · '+new Date().toLocaleDateString('en-AU',{weekday:'long'}))
+        ),
+        el('div',{style:{display:'flex',alignItems:'center',gap:10}},
+          el('div',{style:{fontSize:22,fontWeight:800,color:todayDone===todayTotal&&todayTotal>0?'var(--gn)':'var(--go)',fontFamily:"'Barlow Condensed',sans-serif"}},todayDone+'/'+todayTotal),
+          Btn(addProto?'Cancel':'+ Habit',()=>setAddProto(!addProto),'bg',{fontSize:10})
+        )
+      ),
+      PB(todayTotal?todayDone/todayTotal*100:0,todayDone===todayTotal&&todayTotal>0?'var(--gn)':'var(--go)'),
+      addProto&&el('div',{style:{display:'flex',gap:8,marginTop:12}},
+        el('input',{className:'ipt',style:{flex:1},value:newProto.label,onChange:e=>setNewProto(p=>({...p,label:e.target.value})),onKeyDown:e=>e.key==='Enter'&&addProtocol(),placeholder:'e.g. Read 30 min, Cold shower, Meditate…',autoFocus:true}),
+        el('input',{className:'ipt',type:'number',style:{width:70},value:newProto.xp,onChange:e=>setNewProto(p=>({...p,xp:e.target.value})),placeholder:'XP'}),
+        Btn('Add',addProtocol,'bg',{padding:'6px 14px'})
+      ),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:6,marginTop:12}},
+        ...protocols.map(p=>
+          el('div',{key:p.id,onClick:()=>{togH(p.id);if(!habits[p.id])awardXP(p.xp||20);},style:{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:habits[p.id]?'#D1FAE5':'var(--cd)',border:'1px solid '+(habits[p.id]?'#6EE7B7':'var(--br)'),borderRadius:10,cursor:'pointer',transition:'all .15s',flex:'1 1 180px'}},
+            el('div',{style:{width:18,height:18,borderRadius:5,border:'2px solid '+(habits[p.id]?'var(--gn)':'var(--br)'),background:habits[p.id]?'var(--gn)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},habits[p.id]&&el('span',{style:{color:'#fff',fontSize:9,fontWeight:700}},'✓')),
+            el('span',{style:{fontSize:12,fontWeight:500,flex:1,color:habits[p.id]?'var(--t3)':'var(--tx)',textDecoration:habits[p.id]?'line-through':'none'}},p.label),
+            habits[p.id]&&el('span',{style:{fontSize:9,fontWeight:700,color:'var(--gn)',letterSpacing:.5}},'+'+p.xp),
+            el('button',{onClick:e=>{e.stopPropagation();removeProtocol(p.id);},style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:13,padding:0,lineHeight:1,flexShrink:0}},'×')
+          )
+        )
+      ),
+      protocols.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 0'}},'No habits yet — add one above to start tracking')
+    ),
+
+    // ── 30-day grid ────────────────────────────────────────────
+    protocols.length>0&&el('div',{className:'card'},
+      el('div',{className:'ph'},
+        PT('30-Day Habit Grid'),
+        el('div',{style:{fontSize:11,color:'var(--t3)'}},'Last 30 days')
+      ),
+      // Day header
+      el('div',{style:{display:'flex',marginBottom:6,paddingLeft:160}},
+        ...days.map((ds,i)=>{
+          const isToday=ds===TODAY;
+          const d=new Date(ds+'T12:00');
+          return el('div',{key:ds,style:{flex:1,textAlign:'center',fontSize:7,fontWeight:isToday?800:500,color:isToday?'var(--go)':'var(--t3)',minWidth:0}},
+            i===0||d.getDate()===1?d.toLocaleString('en-AU',{month:'short',day:'numeric'}):d.getDate()===1?d.toLocaleString('en-AU',{month:'short'}):(i%5===0?d.getDate():'')
+          );
+        })
+      ),
+      el('div',{style:{display:'flex',flexDirection:'column',gap:4}},
+        ...protocols.map(p=>{
+          const streak=protoStreak(p.id);
+          const pct=protoPct(p.id);
+          return el('div',{key:p.id,style:{display:'flex',alignItems:'center',gap:8}},
+            el('div',{style:{width:152,fontSize:11,fontWeight:500,color:'var(--tx)',flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:8}},p.label),
+            el('div',{style:{flex:1,display:'flex',gap:2}},
+              ...days.map(ds=>{
+                const h=ds===TODAY?habits[p.id]:stg('habits-'+ds)?.[p.id];
+                const isToday=ds===TODAY;
+                return el('div',{key:ds,title:ds+(h?' ✓':' ✗'),style:{flex:1,height:16,borderRadius:3,background:h?'#34D399':'rgba(0,0,0,0.06)',border:isToday?'1.5px solid #D97706':'1px solid transparent',transition:'background .1s',minWidth:0}});
+              })
+            ),
+            el('div',{style:{width:28,textAlign:'right',fontSize:11,fontWeight:700,color:streak>0?'var(--gn)':'var(--t3)',flexShrink:0}},streak>0?streak+'🔥':''),
+            el('div',{style:{width:32,textAlign:'right',fontSize:10,color:'var(--t3)',flexShrink:0}},pct+'%')
+          );
+        })
+      ),
+      el('div',{style:{display:'flex',alignItems:'center',gap:12,marginTop:12,paddingTop:10,borderTop:'1px solid var(--br)'}},
+        el('div',{style:{display:'flex',alignItems:'center',gap:4}},el('div',{style:{width:12,height:12,borderRadius:2,background:'#34D399'}}),el('span',{style:{fontSize:10,color:'var(--t3)'}},'Done')),
+        el('div',{style:{display:'flex',alignItems:'center',gap:4}},el('div',{style:{width:12,height:12,borderRadius:2,background:'rgba(0,0,0,0.06)'}}),el('span',{style:{fontSize:10,color:'var(--t3)'}},'Missed')),
+        el('div',{style:{display:'flex',alignItems:'center',gap:4}},el('div',{style:{width:12,height:12,borderRadius:2,border:'1.5px solid #D97706'}}),el('span',{style:{fontSize:10,color:'var(--t3)'}},'Today')),
+        el('span',{style:{fontSize:10,color:'var(--t3)',marginLeft:'auto'}},'Streak 🔥 · 30d %')
+      )
+    )
+  );
+};
+
 const tTraining=()=>{
   const todayWday=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][DOW];
   const WO_COLORS={Run:['#D1FAE5','#065F46'],Gym:['#DBEAFE','#1E40AF'],Swim:['#E0F2FE','#0369A1'],Cycle:['#FEF9C3','#713F12'],HIIT:['#FEE2E2','#991B1B'],Rest:['#F3F4F6','var(--t3)'],Other:['#EDE9FE','#6D28D9']};
@@ -2169,7 +2258,73 @@ const tTraining=()=>{
 );};
 
 // ─── MONEY ─────────────────────────────────────────────────────
-const tMoney=()=>{try{return el('div',null,
+const tMoney=()=>{try{
+  // ── P&L computations ─────────────────────────────────────────
+  const last6=Array.from({length:6},(_,i)=>{
+    const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);
+    const key=d.toISOString().slice(0,7);
+    const rev=fin.filter(e=>e.type==='revenue'&&e.date?.startsWith(key)).reduce((s,e)=>s+(+e.amount||0),0);
+    const exp=fin.filter(e=>e.type==='expense'&&e.date?.startsWith(key)).reduce((s,e)=>s+(+e.amount||0),0);
+    return{key,label:d.toLocaleString('en-AU',{month:'short'}),rev,exp,profit:rev-exp};
+  }).reverse();
+  const mExpMap={},mRevMap={};
+  fin.filter(e=>e.type==='expense'&&e.date?.startsWith(thisM)).forEach(e=>{const c=e.cat||'Other';mExpMap[c]=(mExpMap[c]||0)+(+e.amount||0);});
+  fin.filter(e=>e.type==='revenue'&&e.date?.startsWith(thisM)).forEach(e=>{const c=e.cat||'Other';mRevMap[c]=(mRevMap[c]||0)+(+e.amount||0);});
+  const mExpCats=Object.entries(mExpMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const mRevCats=Object.entries(mRevMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxBar=Math.max(...last6.map(x=>Math.max(x.rev,x.exp)),1);
+  return el('div',null,
+
+  // ── Monthly P&L ───────────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14}},
+    el('div',{className:'ph'},PT('Monthly P&L — '+new Date().toLocaleString('en-AU',{month:'long',year:'numeric'}))),
+    // 3 big numbers
+    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}},
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--gn)'}},FMT(mRev)),el('div',{className:'scl'},'Revenue')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},FMT(mExp)),el('div',{className:'scl'},'Expenses')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:mRev-mExp>=0?'var(--gn)':'var(--rd2)'}},FMT(mRev-mExp)),el('div',{className:'scl'},'Profit'))
+    ),
+    // 6-month bar chart
+    el('div',{style:{marginBottom:16}},
+      el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},'6-Month Trend'),
+      el('div',{style:{display:'flex',gap:6,alignItems:'flex-end',height:64}},
+        ...last6.map(m=>{
+          const rh=Math.round(m.rev/maxBar*56)+2;
+          const eh=Math.round(m.exp/maxBar*56)+2;
+          const isThis=m.key===thisM;
+          return el('div',{key:m.key,style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}},
+            el('div',{style:{display:'flex',gap:2,alignItems:'flex-end',height:56}},
+              el('div',{style:{width:8,height:rh,background:'var(--gn)',borderRadius:'3px 3px 0 0',opacity:isThis?1:.65}}),
+              el('div',{style:{width:8,height:eh,background:'var(--rd2)',borderRadius:'3px 3px 0 0',opacity:isThis?1:.65}})
+            ),
+            el('div',{style:{fontSize:8,fontWeight:isThis?700:400,color:isThis?'var(--go)':'var(--t3)'}},m.label)
+          );
+        })
+      ),
+      el('div',{style:{display:'flex',gap:12,marginTop:6,fontSize:10,color:'var(--t3)'}},
+        el('span',null,el('span',{style:{color:'var(--gn)'}},'■'),' Revenue'),
+        el('span',null,el('span',{style:{color:'var(--rd2)'}},'■'),' Expenses')
+      )
+    ),
+    // Category breakdowns side by side
+    el('div',{className:'g2'},
+      mExpCats.length>0&&el('div',null,
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--rd2)',marginBottom:8}},'Expenses by Category'),
+        ...mExpCats.map(([cat,amt])=>el('div',{key:cat,style:{marginBottom:6}},
+          el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}},el('span',{style:{color:'var(--t2)'}},cat),el('span',{style:{fontWeight:700,color:'var(--rd2)'}},FMT(amt))),
+          PB(amt/(mExpCats[0][1]||1)*100,'var(--rd2)')
+        ))
+      ),
+      mRevCats.length>0&&el('div',null,
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:'var(--gn)',marginBottom:8}},'Revenue by Category'),
+        ...mRevCats.map(([cat,amt])=>el('div',{key:cat,style:{marginBottom:6}},
+          el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}},el('span',{style:{color:'var(--t2)'}},cat),el('span',{style:{fontWeight:700,color:'var(--gn)'}},FMT(amt))),
+          PB(amt/(mRevCats[0][1]||1)*100,'var(--gn)')
+        ))
+      )
+    )
+  ),
+
   // ── Daily Revenue Target (Feature 5) ─────────────────────────
   (()=>{
     const goal=+revGoal||0;
