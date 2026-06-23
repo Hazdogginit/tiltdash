@@ -681,8 +681,7 @@ const[newReview,setNewReview]=useState(()=>stg('weekly-reviews')?.[WEEK_KEY]||{w
 const[expReview,setExpReview]=useState(null);
 // ── Feature 4: Mood log ──
 const[moodLog,setMoodLog]=useState(()=>stg('mood-log')||[]);
-// ── Feature 5: Revenue goal ──
-const[revGoal,setRevGoal]=useState(()=>stg('rev-goal-month')||'');
+// ── Feature 5: Revenue goal (legacy key kept for compat) ──
 // ── Feature 6: Stockist CRM ──
 const[stockists,setStockists]=useState(()=>stg('stockists')||[]);
 const[addStk,setAddStk]=useState(false);
@@ -721,6 +720,28 @@ const[dark,setDark]=useState(()=>stg('dark-mode')||false);
 const[notes,setNotes]=useState(()=>stg('brain-dump')||[]);
 const[noteInput,setNoteInput]=useState('');
 const[syncStatus,setSyncStatus]=useState('idle');
+// ── Influencer tracker ──
+const[influencers,setInfluencers]=useState(()=>stg('influencers')||[]);
+const[addInf,setAddInf]=useState(false);
+const[newInf,setNewInf]=useState({name:'',platform:'Instagram',followers:'',status:'Outreach',postDate:'',reach:'',notes:''});
+// ── 1RM / PB tracker ──
+const[pbs,setPbs]=useState(()=>stg('pbs')||[]);
+const[addPb,setAddPb]=useState(false);
+const[newPb,setNewPb]=useState({lift:'',weight:'',unit:'kg',date:TODAY,notes:''});
+// ── Decision journal ──
+const[decisions,setDecisions]=useState(()=>stg('decisions')||[]);
+const[addDec,setAddDec]=useState(false);
+const[newDec,setNewDec]=useState({decision:'',reasoning:'',date:TODAY,outcome:'',reviewed:false});
+const[decExp,setDecExp]=useState({});
+// ── Tax bucket ──
+const[taxPct,setTaxPct]=useState(()=>stg('tax-pct')||30);
+const[taxWithdrawn,setTaxWithdrawn]=useState(()=>stg('tax-withdrawn')||0);
+// ── Revenue goal ──
+const[revGoal,setRevGoal]=useState(()=>stg('rev-goal')||{monthly:'',annual:''});
+// ── Saved quotes ──
+const[savedQuotes,setSavedQuotes]=useState(()=>stg('saved-quotes')||['I am building something that lasts.','Discipline today, freedom tomorrow.',"I do what others won't so I can live how others can't."]);
+const[newQuote,setNewQuote]=useState('');
+const[quoteIdx]=useState(()=>Math.floor(Math.random()*3));
 const[protocols,setProtocols]=useState(()=>stg('protocols')||[{id:'reading',label:'Reading — 30 min',xp:20},{id:'language',label:'Language Practice — 15 min',xp:20}]);
 const[addProto,setAddProto]=useState(false);
 const[newProto,setNewProto]=useState({label:'',xp:20});
@@ -967,6 +988,26 @@ const curStock=stockBal(slog);
 const curSlabs=Math.floor(curStock/24);
 const mktgUsed=slog.filter(e=>e.dir==='out'&&e.cat!=='sale').reduce((s,e)=>s+(+e.cans||0)+(+e.slabs||0)*24,0);
 const totalSold=sales.reduce((s,e)=>s+e.totalCans,0);
+// ── Sales velocity + reorder ──────────────────────────────────
+const salesLast30=sales.filter(s=>{try{return (new Date(TODAY)-new Date(s.date))/(86400000)<=30;}catch{return false;}});
+const cansPerDay=salesLast30.length>0?salesLast30.reduce((s,x)=>s+x.totalCans,0)/30:0;
+const daysOfStock=cansPerDay>0?Math.floor(curStock/cansPerDay):null;
+const topBuyers=Object.entries(sales.reduce((m,s)=>{m[s.buyer]=(m[s.buyer]||0)+s.totalCans;return m;},{})).sort((a,b)=>b[1]-a[1]).slice(0,3);
+// ── Recovery score ────────────────────────────────────────────
+const lastSleep=sleepLog[0];
+const recoverySleep=lastSleep?Math.min(100,Math.round((+lastSleep.hours||0)/8*50)+Math.round((+lastSleep.quality||0)/10*30)):0;
+const recoveryEnergy=Math.round((mood.energy||0)/5*20);
+const recoveryScore=recoverySleep+recoveryEnergy;
+const recoveryLabel=recoveryScore>=80?'Optimal':recoveryScore>=60?'Good':recoveryScore>=40?'Moderate':'Low';
+const recoveryColor=recoveryScore>=80?'var(--gn)':recoveryScore>=60?'var(--gn2)':recoveryScore>=40?'var(--go)':'var(--rd2)';
+// ── Tax bucket ────────────────────────────────────────────────
+const taxOwed=Math.round(totalRev*(taxPct/100));
+const taxBalance=taxOwed-(+taxWithdrawn||0);
+// ── Revenue goal ─────────────────────────────────────────────
+const mRevGoalPct=revGoal.monthly?(mRev/(+revGoal.monthly)*100):0;
+const aRevGoalPct=revGoal.annual?(totalRev/(+revGoal.annual)*100):0;
+// ── Today's quote ─────────────────────────────────────────────
+const todayQuote=savedQuotes.length>0?savedQuotes[new Date().getDate()%savedQuotes.length]:'';
 // Per-SKU balances
 const skuBal=sku=>slog.filter(e=>e.sku===sku||e.sku==='All').reduce((s,e)=>{const c=(+e.cans||0)+(+e.slabs||0)*24;return e.dir==='in'?s+c:s-c;},0);
 const sesh=prescribe(mCfg.rd,mCfg.km,DOW);
@@ -1127,6 +1168,14 @@ const checkIn=id=>{const u=contacts.map(c=>c.id===id?{...c,last:TODAY}:c);setCon
 const saveMood=(f,v)=>{const u={...mood,[f]:v};setMood(u);sts('mood-'+TODAY,u);};
 const addWater=()=>{const v=Math.min(water+1,20);setWater(v);sts('water-'+TODAY,v);if(v===waterGoal)awardXP(20);};
 const resetWater=()=>{setWater(0);sts('water-'+TODAY,0);};
+const addInfluencer=()=>{if(!newInf.name)return;const u=[...influencers,{id:Date.now()+'',date:TODAY,...newInf,followers:+newInf.followers||0}];setInfluencers(u);sts('influencers',u);setNewInf({name:'',platform:'Instagram',followers:'',status:'Outreach',postDate:'',reach:'',notes:''});setAddInf(false);showN('Influencer added');};
+const updInf=(id,f,v)=>{const u=influencers.map(x=>x.id===id?{...x,[f]:v}:x);setInfluencers(u);sts('influencers',u);};
+const delInf=id=>{const u=influencers.filter(x=>x.id!==id);setInfluencers(u);sts('influencers',u);};
+const addPB=()=>{if(!newPb.lift||!newPb.weight)return;const u=[{id:Date.now()+'', ...newPb},...pbs].slice(0,200);setPbs(u);sts('pbs',u);setNewPb({lift:'',weight:'',unit:'kg',date:TODAY,notes:''});setAddPb(false);awardXP(25);showN('PB logged! +25 XP');};
+const delPb=id=>{const u=pbs.filter(x=>x.id!==id);setPbs(u);sts('pbs',u);};
+const addDecision=()=>{if(!newDec.decision)return;const u=[{id:Date.now()+'', ...newDec},...decisions].slice(0,100);setDecisions(u);sts('decisions',u);setNewDec({decision:'',reasoning:'',date:TODAY,outcome:'',reviewed:false});setAddDec(false);showN('Decision logged');};
+const reviewDec=(id,outcome)=>{const u=decisions.map(x=>x.id===id?{...x,outcome,reviewed:true}:x);setDecisions(u);sts('decisions',u);showN('Decision reviewed');};
+const delDec=id=>{const u=decisions.filter(x=>x.id!==id);setDecisions(u);sts('decisions',u);};
 // Sleep
 const doAddSleep=()=>{if(!newSleep.bed||!newSleep.wake)return;const[bh,bm]=(newSleep.bed||'00:00').split(':').map(Number);const[wh,wm]=(newSleep.wake||'00:00').split(':').map(Number);let hrs=wh-bh+(wm-bm)/60;if(hrs<0)hrs+=24;const u=[{id:Date.now()+'',date:newSleep.date||TODAY,...newSleep,hours:+hrs.toFixed(1)},...sleepLog].slice(0,90);setSleepLog(u);sts('sleep-log',u);setNewSleep({date:TODAY,bed:'',wake:'',quality:3,energy:3,notes:''});setAddSleep(false);showN('Sleep logged — '+hrs.toFixed(1)+'h');};
 // Measurements
@@ -1318,7 +1367,7 @@ const tHome=()=>{
   el('div',{style:{marginBottom:16}},
     el('div',{style:{fontSize:11,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:4}},DLONG+' · Week '+Math.ceil(DAYYR/7)),
     el('div',{style:{fontSize:26,fontWeight:700,letterSpacing:-.5,color:'var(--tx)',lineHeight:1.1}},greet),
-    todayAff&&el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6}},'"'+todayAff+'"'),
+    todayQuote&&el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6}},'"'+todayQuote+'"'),
     // XP + level bar
     el('div',{style:{display:'flex',alignItems:'center',gap:10,marginTop:12,background:'rgba(255,255,255,0.5)',borderRadius:12,padding:'8px 12px'}},
       el('div',{style:{width:32,height:32,borderRadius:9,background:'linear-gradient(135deg,#D97706,#FBBF24)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:'#fff',flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif"}},(lvl.i+1)+''),
@@ -1342,12 +1391,38 @@ const tHome=()=>{
   ),
 
   // ── Quick stats row ──────────────────────────────────────────
-  el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:14}},
+  el('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:14}},
     ...[['🏋️','Train',trainingStreak,'var(--gn)'],['🌅','Morning',morningStreak,'var(--go)'],['📱','Post',postingStreak,'var(--rd2)'],['✍️','Journal',journalStreak,'var(--pu)']].map(([ic,l,n,col])=>
       el('div',{key:l,style:{background:'var(--cd)',borderRadius:10,padding:'10px 8px',textAlign:'center'}},
         el('div',{style:{fontSize:18,lineHeight:1,marginBottom:4}},n>=7?'🔥':ic),
         el('div',{style:{fontSize:22,fontWeight:800,color:n>0?col:'var(--t3)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},n),
         el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,marginTop:2,textTransform:'uppercase'}},l)
+      )
+    ),
+    el('div',{style:{background:'var(--cd)',borderRadius:10,padding:'10px 8px',textAlign:'center'}},
+      el('div',{style:{fontSize:18,lineHeight:1,marginBottom:4}},recoveryScore>=80?'⚡':recoveryScore>=60?'🙂':'😴'),
+      el('div',{style:{fontSize:22,fontWeight:800,color:recoveryColor,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},recoveryScore+'%'),
+      el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,marginTop:2,textTransform:'uppercase'}},'Recovery')
+    )
+  ),
+
+  // ── Daily Briefing ───────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14,background:'linear-gradient(135deg,#1E1B4B 0%,#312E81 100%)',color:'#fff'}},
+    el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'rgba(255,255,255,.6)',marginBottom:10}},'Today\'s Briefing'),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:6}},
+      ...[
+        tasks.length>0?[tDone===tasks.length?'✅':'📌','Tasks: '+tDone+'/'+tasks.length+(tDone===tasks.length?' — all done!':' remaining')]:null,
+        protocols.length>0?[protocols.filter(p=>habits[p.id]).length===protocols.length?'🔥':'📋','Habits: '+protocols.filter(p=>habits[p.id]).length+'/'+protocols.length+(protocols.filter(p=>habits[p.id]).length===protocols.length?' — streak alive!':'')]:null,
+        curStock>0?[daysOfStock!==null&&daysOfStock<14?'⚠️':'📦','Stock: '+curStock+' cans'+(daysOfStock!==null?' · '+daysOfStock+'d left at current pace':'')]:null,
+        mRev>0?['💰','Revenue this month: '+FMT(mRev)+(revGoal.monthly?' / '+FMT(+revGoal.monthly)+' goal':'')]:null,
+        recoveryScore>0?[recoveryScore>=70?'⚡':'😴','Recovery: '+recoveryScore+'% — '+recoveryLabel]:null,
+        !eod.saved&&new Date().getHours()>=20?['🌙','EOD review not done — don\'t forget to log your day']:null,
+        water<Math.floor(waterGoal/2)&&new Date().getHours()>=12?['💧','Hydration low — only '+water+' of '+waterGoal+' glasses so far']:null,
+      ].filter(Boolean).map(([ic,msg],i)=>
+        el('div',{key:i,style:{display:'flex',gap:8,alignItems:'flex-start',fontSize:12,color:'rgba(255,255,255,.9)'}},
+          el('span',{style:{flexShrink:0}},ic),
+          el('span',null,msg)
+        )
       )
     )
   ),
@@ -1905,6 +1980,33 @@ const tTilt=()=>el('div',null,
       )
     ),
 
+    // ── Sales Velocity + Reorder Alert ──────────────────────────
+    el('div',{style:{marginBottom:16}},
+      el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},'Sales Intelligence'),
+      daysOfStock!==null&&daysOfStock<14&&el('div',{style:{background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:10,padding:'10px 14px',marginBottom:10,display:'flex',gap:10,alignItems:'center'}},
+        el('div',{style:{fontSize:22}},'⚠️'),
+        el('div',null,
+          el('div',{style:{fontWeight:700,color:'var(--rd2)',fontSize:13}},'Reorder Soon'),
+          el('div',{style:{fontSize:12,color:'var(--t2)',marginTop:2}},'At current pace ('+cansPerDay.toFixed(1)+' cans/day) you have ~'+daysOfStock+' days of stock left.')
+        )
+      ),
+      el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:10}},
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--go)'}},cansPerDay.toFixed(1)),el('div',{className:'scl'},'Cans/Day (30d)')),
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:daysOfStock!==null&&daysOfStock<14?'var(--rd2)':'var(--gn)'}},daysOfStock!==null?daysOfStock+'d':'—'),el('div',{className:'scl'},'Days of Stock')),
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--bl2)'}},FMT(cansPerDay*30*((sales[0]?.price||0)/(sales[0]?.totalCans||1)))),el('div',{className:'scl'},'Proj Month Rev'))
+      ),
+      topBuyers.length>0&&el('div',null,
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},'Top Buyers'),
+        ...topBuyers.map(([name,cans],i)=>
+          el('div',{key:name,style:{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid var(--br)'}},
+            el('div',{style:{width:18,height:18,borderRadius:5,background:'var(--go)',color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}},i+1),
+            el('div',{style:{flex:1,fontSize:13,fontWeight:600,color:'var(--tx)'}},name),
+            el('div',{style:{fontSize:12,color:'var(--t3)'}},cans+' cans')
+          )
+        )
+      )
+    ),
+
     // ── Full stock movement log ──────────────────────────────────
     el('div',null,
       el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:8}},'All Stock Movements'),
@@ -1979,6 +2081,78 @@ const tTilt=()=>el('div',null,
       );
     }),
     ideas.length===0&&!addIdea&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'10px'}},"No ideas yet — capture the next one before it's gone")
+  ),
+  // ── Revenue Goal Thermometer ─────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},PT('Revenue Goals'),el('div',null)),
+    el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
+      el('div',null,
+        FR('Monthly target ($)',el('input',{className:'ipt',type:'number',value:revGoal.monthly,onChange:e=>{const v=e.target.value;setRevGoal(p=>({...p,monthly:v}));sts('rev-goal',{...revGoal,monthly:v});}}))
+      ),
+      el('div',null,
+        FR('Annual target ($)',el('input',{className:'ipt',type:'number',value:revGoal.annual,onChange:e=>{const v=e.target.value;setRevGoal(p=>({...p,annual:v}));sts('rev-goal',{...revGoal,annual:v});}}))
+      )
+    ),
+    revGoal.monthly&&el('div',{style:{marginBottom:10}},
+      el('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
+        el('span',{style:{fontSize:12,fontWeight:600}},'This Month: '+FMT(mRev)+' / '+FMT(+revGoal.monthly)),
+        el('span',{style:{fontSize:12,fontWeight:700,color:mRevGoalPct>=100?'var(--gn)':mRevGoalPct>=60?'var(--go)':'var(--rd2)'}},Math.round(mRevGoalPct)+'%')
+      ),
+      el('div',{style:{height:12,borderRadius:99,background:'var(--br)',overflow:'hidden'}},
+        el('div',{style:{height:'100%',borderRadius:99,background:mRevGoalPct>=100?'var(--gn)':mRevGoalPct>=60?'var(--go)':'var(--rd2)',width:Math.min(100,mRevGoalPct)+'%',transition:'width .4s'}})
+      )
+    ),
+    revGoal.annual&&el('div',null,
+      el('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
+        el('span',{style:{fontSize:12,fontWeight:600}},'This Year: '+FMT(totalRev)+' / '+FMT(+revGoal.annual)),
+        el('span',{style:{fontSize:12,fontWeight:700,color:aRevGoalPct>=100?'var(--gn)':aRevGoalPct>=40?'var(--go)':'var(--rd2)'}},Math.round(aRevGoalPct)+'%')
+      ),
+      el('div',{style:{height:12,borderRadius:99,background:'var(--br)',overflow:'hidden'}},
+        el('div',{style:{height:'100%',borderRadius:99,background:aRevGoalPct>=100?'var(--gn)':aRevGoalPct>=40?'var(--go)':'var(--rd2)',width:Math.min(100,aRevGoalPct)+'%',transition:'width .4s'}})
+      )
+    )
+  ),
+  // ── Influencer / Partnership Tracker ─────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Influencer & Partnerships'),
+      Btn(addInf?'Cancel':'+ Add',()=>setAddInf(!addInf),'bg',{fontSize:10})
+    ),
+    addInf&&el('div',{style:{background:'#F5F3FF',border:'1px solid #DDD6FE',borderRadius:8,padding:14,marginBottom:12}},
+      G2([
+        FR('Name / Handle',el('input',{className:'ipt',value:newInf.name,onChange:e=>setNewInf(p=>({...p,name:e.target.value})),placeholder:'@handle or full name'})),
+        FR('Platform',el('select',{className:'ipt',value:newInf.platform,onChange:e=>setNewInf(p=>({...p,platform:e.target.value}))},['Instagram','TikTok','YouTube','Both'].map(t=>el('option',{key:t,value:t},t)))),
+        FR('Followers',el('input',{className:'ipt',type:'number',value:newInf.followers,onChange:e=>setNewInf(p=>({...p,followers:e.target.value})),placeholder:'0'})),
+        FR('Status',el('select',{className:'ipt',value:newInf.status,onChange:e=>setNewInf(p=>({...p,status:e.target.value}))},['Outreach','Sent Product','Agreed','Live','Declined'].map(t=>el('option',{key:t,value:t},t)))),
+        FR('Post Date',el('input',{className:'ipt',type:'date',value:newInf.postDate,onChange:e=>setNewInf(p=>({...p,postDate:e.target.value}))})),
+        FR('Reach Delivered',el('input',{className:'ipt',type:'number',value:newInf.reach,onChange:e=>setNewInf(p=>({...p,reach:e.target.value})),placeholder:'0'}))
+      ]),
+      FR('Notes',el('input',{className:'ipt',value:newInf.notes,onChange:e=>setNewInf(p=>({...p,notes:e.target.value})),placeholder:'Deal details, vibe, what they said...'})),
+      el('div',{style:{marginTop:8}},Btn('Add',addInfluencer,'bg'))
+    ),
+    influencers.length===0&&!addInf&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px'}},'Track every influencer relationship — outreach to results'),
+    influencers.length>0&&el('div',{style:{display:'grid',gridTemplateColumns:'1fr 70px 80px 80px auto',gap:6,padding:'5px 4px',fontSize:9,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',color:'var(--t3)',borderBottom:'1px solid var(--br)',marginBottom:6}},
+      ['Name / Platform','Followers','Status','Reach',''].map(h=>el('div',{key:h},h))
+    ),
+    ...influencers.map(inf=>{
+      const statusCol={Outreach:'#EFF6FF',Sent:'#FFF7ED','Sent Product':'#FFF7ED',Agreed:'#F5F3FF',Live:'#D1FAE5',Declined:'#FEE2E2'}[inf.status]||'var(--sf)';
+      const statusTc={Outreach:'#1D4ED8',Sent:'#854F0B','Sent Product':'#854F0B',Agreed:'#5B21B6',Live:'#065F46',Declined:'#991B1B'}[inf.status]||'var(--t2)';
+      return el('div',{key:inf.id,style:{display:'grid',gridTemplateColumns:'1fr 70px 80px 80px auto',gap:6,padding:'8px 4px',borderBottom:'1px solid var(--br)',alignItems:'center'}},
+        el('div',null,
+          el('div',{style:{fontSize:13,fontWeight:600,color:'var(--tx)'}},inf.name),
+          el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:1}},inf.platform+(inf.postDate?' · '+inf.postDate:''))
+        ),
+        el('div',{style:{fontSize:12,fontWeight:600,color:'var(--t2)'}},inf.followers?(+inf.followers).toLocaleString():'—'),
+        el('div',{style:{fontSize:9,fontWeight:700,padding:'3px 7px',borderRadius:99,background:statusCol,color:statusTc,textAlign:'center'}},inf.status),
+        el('div',{style:{fontSize:12,fontWeight:600,color:'var(--go)'}},inf.reach?(+inf.reach).toLocaleString():'—'),
+        el('div',{style:{display:'flex',gap:4}},
+          el('select',{className:'ipt',style:{fontSize:10,padding:'2px 4px',width:90},value:inf.status,onChange:e=>updInf(inf.id,'status',e.target.value)},
+            ['Outreach','Sent Product','Agreed','Live','Declined'].map(t=>el('option',{key:t,value:t},t))
+          ),
+          Xb(()=>delInf(inf.id))
+        )
+      );
+    })
   ),
   ...GKEYS.map(({k,l})=>el('div',{key:k,className:'card',style:{padding:0,overflow:'hidden'}},
     el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',cursor:'pointer',background:expd[k]?'#FFFBEB':'var(--bg)',borderRadius:12},onClick:()=>setExpd(p=>({...p,[k]:!p[k]}))},
@@ -2440,7 +2614,7 @@ const tMoney=()=>{try{
 
   // ── Daily Revenue Target (Feature 5) ─────────────────────────
   (()=>{
-    const goal=+revGoal||0;
+    const goal=+(revGoal.monthly||revGoal)||0;
     const now=new Date();const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     const remDays=Math.max(1,daysInMonth-now.getDate()+1);
     const remaining=Math.max(0,goal-mRev);
@@ -2451,7 +2625,7 @@ const tMoney=()=>{try{
     return el('div',{className:'card',style:{borderLeft:'4px solid '+col}},
       el('div',{className:'ph'},
         el('div',null,PT('Monthly Revenue Target'),el('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},BUD_MONTH+(goal>0?(ahead?' · ahead of pace':' · behind pace'):''))),
-        el('div',{style:{width:140}},Lbl('Goal ($)'),el('input',{className:'ipt',type:'number',value:revGoal,onChange:e=>saveRevGoal(e.target.value),placeholder:'10000'}))
+        el('div',{style:{width:140}},Lbl('Goal ($)'),el('input',{className:'ipt',type:'number',value:revGoal.monthly||'',onChange:e=>{const v=e.target.value;setRevGoal(p=>({...p,monthly:v}));sts('rev-goal',{...revGoal,monthly:v});},placeholder:'10000'}))
       ),
       el('div',{style:{display:'flex',alignItems:'flex-end',gap:16,flexWrap:'wrap'}},
         el('div',null,
@@ -3058,7 +3232,20 @@ const tMoney=()=>{try{
           el('div',{style:{fontWeight:600,color:(m.rev-m.exp)>=0?'var(--gn)':'var(--rd2)'}},m.rev||m.exp?FMT(m.rev-m.exp):'—')
         ))
       );
-    })())
+    })()),
+    // ── Tax Savings Bucket ────────────────────────────────────────
+    el('div',{className:'card',style:{marginTop:14}},
+      el('div',{className:'ph'},PT('Tax Savings Bucket'),el('div',{style:{fontSize:11,color:'var(--t3)'}},'GST + income tax estimate')),
+      el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}},
+        FR('Set-aside rate (%)',el('input',{className:'ipt',type:'number',min:0,max:50,value:taxPct,onChange:e=>{const v=+e.target.value||30;setTaxPct(v);sts('tax-pct',v);}})),
+        FR('Already withdrawn ($)',el('input',{className:'ipt',type:'number',value:taxWithdrawn,onChange:e=>{const v=+e.target.value||0;setTaxWithdrawn(v);sts('tax-withdrawn',v);}}))
+      ),
+      el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}},
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},FMT(taxOwed)),el('div',{className:'scl'},'Tax Owed (est)')),
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--go)'}},FMT(+taxWithdrawn||0)),el('div',{className:'scl'},'Withdrawn')),
+        el('div',{className:'sc'},el('div',{className:'scv',style:{color:taxBalance<=0?'var(--gn)':'var(--rd2)'}},FMT(Math.max(0,taxBalance))),el('div',{className:'scl'},'Still to Set Aside'))
+      )
+    )
   )
 );}catch(e){console.error('Money tab error:',e);return el('div',{className:'card',style:{textAlign:'center',padding:40,color:'var(--t3)'}},el('div',{style:{fontSize:20,marginBottom:8}},'⚠️'),el('div',{style:{fontSize:14,marginBottom:4}},'Something went wrong loading the Money tab.'),el('div',{style:{fontSize:12}},e.message||'Check browser console for details.'));}};
 
@@ -3228,7 +3415,69 @@ const tPlan=()=>{
         el('textarea',{style:{width:'100%',height:80,background:i===DOW?'#FFFBEB':'var(--bg)',border:'1px solid '+(i===DOW?'#F0E0B0':'var(--br)'),borderRadius:6,fontSize:10,padding:'5px',resize:'none',outline:'none',color:'var(--tx)',lineHeight:1.5},value:wp.blocks?.[i]||'',onChange:e=>{const b={...wp.blocks,[i]:e.target.value};const u={...wp,blocks:b};setWp(u);sts('week-plan-'+WEEK_KEY,u);}})
       ))
     )
+  ),
+
+  // ── Decision Journal ─────────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      PT('Decision Journal'),
+      Btn(addDec?'Cancel':'+ Log Decision',()=>setAddDec(!addDec),'bg',{fontSize:10})
+    ),
+    el('div',{style:{fontSize:12,color:'var(--t3)',marginBottom:10}},'Log big decisions + reasoning. Come back and record outcomes. Sharpens future decisions.'),
+    addDec&&el('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:14,marginBottom:12}},
+      FR('The Decision',el('textarea',{className:'jtxt',rows:2,value:newDec.decision,onChange:e=>setNewDec(p=>({...p,decision:e.target.value})),placeholder:'What did you decide to do?'})),
+      el('div',{style:{height:8}}),
+      FR('Reasoning',el('textarea',{className:'jtxt',rows:2,value:newDec.reasoning,onChange:e=>setNewDec(p=>({...p,reasoning:e.target.value})),placeholder:'Why? What were the alternatives?'})),
+      el('div',{style:{display:'flex',gap:8,marginTop:8,alignItems:'center'}},
+        el('input',{className:'ipt',style:{flex:1},type:'date',value:newDec.date,onChange:e=>setNewDec(p=>({...p,date:e.target.value}))}),
+        Btn('Log Decision',addDecision,'bg')
+      )
+    ),
+    decisions.length===0&&!addDec&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px'}},'No decisions logged yet'),
+    ...decisions.map(d=>{
+      const isExp=!!decExp[d.id];
+      const daysAgo=Math.round((new Date(TODAY)-new Date(d.date))/(86400000));
+      return el('div',{key:d.id,style:{borderBottom:'1px solid var(--br)',padding:'10px 0'}},
+        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,cursor:'pointer'},onClick:()=>setDecExp(p=>({...p,[d.id]:!p[d.id]}))},
+          el('div',{style:{flex:1}},
+            el('div',{style:{fontSize:13,fontWeight:600,color:'var(--tx)',lineHeight:1.4}},d.decision),
+            el('div',{style:{fontSize:10,color:'var(--t3)',marginTop:2}},d.date+(daysAgo>0?' · '+daysAgo+'d ago':'')+(d.reviewed?' · Reviewed ✓':' · Pending review'))
+          ),
+          el('div',{style:{display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+            !d.reviewed&&el('span',{style:{fontSize:9,background:'#FEF3C7',color:'#92400E',padding:'2px 6px',borderRadius:99,fontWeight:700}},'REVIEW'),
+            el('span',{style:{fontSize:11,color:'var(--t3)'}},isExp?'▲':'▼')
+          )
+        ),
+        isExp&&el('div',{style:{marginTop:8,background:'var(--sf)',borderRadius:8,padding:10}},
+          d.reasoning&&el('div',{style:{fontSize:12,color:'var(--t2)',marginBottom:8}},el('strong',null,'Reasoning: '),d.reasoning),
+          d.reviewed?el('div',{style:{fontSize:12,color:'var(--gn)'}},el('strong',null,'Outcome: '),d.outcome):
+          el('div',null,
+            FR('What was the outcome?',el('textarea',{className:'jtxt',rows:2,placeholder:'How did it play out?',onChange:e=>setNewDec(p=>({...p,outcome:e.target.value})),value:decExp[d.id+'_out']||''})),
+            el('div',{style:{display:'flex',gap:6,marginTop:6}},
+              Btn('Mark Reviewed',()=>reviewDec(d.id,decExp[d.id+'_out']||'—'),'bg',{fontSize:11}),
+              Xb(()=>delDec(d.id))
+            )
+          )
+        )
+      );
+    })
+  ),
+
+  // ── Saved Quotes ─────────────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},PT('My Quotes'),el('div',{style:{fontSize:11,color:'var(--t3)'}},savedQuotes.length+' saved · rotates daily on Home')),
+    el('div',{style:{display:'flex',gap:8,marginBottom:12}},
+      el('input',{className:'ipt',style:{flex:1},value:newQuote,onChange:e=>setNewQuote(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&newQuote.trim()){const u=[...savedQuotes,newQuote.trim()];setSavedQuotes(u);sts('saved-quotes',u);setNewQuote('');showN('Quote saved');}},placeholder:'Add a quote that drives you...'}),
+      Btn('Add',()=>{if(!newQuote.trim())return;const u=[...savedQuotes,newQuote.trim()];setSavedQuotes(u);sts('saved-quotes',u);setNewQuote('');showN('Quote saved');},'bg')
+    ),
+    ...savedQuotes.map((q,i)=>
+      el('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid var(--br)'}},
+        el('div',{style:{fontSize:13,fontStyle:'italic',flex:1,color:'var(--t2)',lineHeight:1.4}},'"'+q+'"'),
+        el('button',{onClick:()=>{const u=savedQuotes.filter((_,j)=>j!==i);setSavedQuotes(u);sts('saved-quotes',u);},style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:16,padding:'0 4px',lineHeight:1}},'×')
+      )
+    )
   )
+
 );};
 
 // ─── LEARN ─────────────────────────────────────────────────────
@@ -3755,6 +4004,44 @@ const tGym=()=>{
     el('div',{style:{background:'var(--cd)',borderRadius:12,padding:14,marginTop:4,fontSize:12,color:'var(--t3)',lineHeight:1.7}},
       el('span',{style:{fontWeight:600,color:'var(--tx)'}},'Push / Pull / Legs · A/B split. '),
       'Toggle Week A/B above. Each session is 45 min. Tap Push, Pull or Legs to view exercises, blocks and supersets.'
+    ),
+    // ── 1RM / Personal Bests ─────────────────────────────────────
+    el('div',{className:'card',style:{marginTop:14}},
+      el('div',{className:'ph'},
+        PT('Personal Bests & 1RM'),
+        Btn(addPb?'Cancel':'+ Log PB',()=>setAddPb(!addPb),'bg',{fontSize:10})
+      ),
+      addPb&&el('div',{style:{background:'#FFF7ED',border:'1px solid #F0E0B0',borderRadius:8,padding:12,marginBottom:12}},
+        G2([
+          FR('Lift / Exercise',el('input',{className:'ipt',value:newPb.lift,onChange:e=>setNewPb(p=>({...p,lift:e.target.value})),placeholder:'e.g. Bench Press, Squat, Deadlift'})),
+          FR('Weight',el('div',{style:{display:'flex',gap:6}},el('input',{className:'ipt',type:'number',style:{flex:1},value:newPb.weight,onChange:e=>setNewPb(p=>({...p,weight:e.target.value})),placeholder:'100'}),el('select',{className:'ipt',style:{width:60},value:newPb.unit,onChange:e=>setNewPb(p=>({...p,unit:e.target.value}))},['kg','lbs'].map(u=>el('option',{key:u,value:u},u))))),
+          FR('Date',el('input',{className:'ipt',type:'date',value:newPb.date,onChange:e=>setNewPb(p=>({...p,date:e.target.value}))})),
+          FR('Notes',el('input',{className:'ipt',value:newPb.notes,onChange:e=>setNewPb(p=>({...p,notes:e.target.value})),placeholder:'Form notes, conditions...'}))
+        ]),
+        Btn('Save PB +25 XP',addPB,'bg')
+      ),
+      pbs.length===0&&!addPb&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'12px'}},'Track your 1RMs — nothing motivates like watching numbers go up'),
+      pbs.length>0&&(()=>{
+        const latest=pbs.reduce((m,pb)=>{if(!m[pb.lift]||pb.date>m[pb.lift].date)m[pb.lift]=pb;return m;},{});
+        return el('div',null,
+          el('div',{style:{display:'grid',gridTemplateColumns:'1fr 80px 90px auto',gap:6,padding:'5px 4px',fontSize:9,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',color:'var(--t3)',borderBottom:'1px solid var(--br)',marginBottom:6}},
+            ['Lift','Best','Date',''].map(h=>el('div',{key:h},h))
+          ),
+          ...Object.values(latest).sort((a,b)=>b.date>a.date?1:-1).map(pb=>{
+            const prev=pbs.filter(x=>x.lift===pb.lift&&x.date<pb.date)[0];
+            const delta=prev?pb.weight-prev.weight:null;
+            return el('div',{key:pb.id,style:{display:'grid',gridTemplateColumns:'1fr 80px 90px auto',gap:6,padding:'7px 4px',borderBottom:'1px solid var(--br)',alignItems:'center'}},
+              el('div',null,
+                el('div',{style:{fontSize:13,fontWeight:600,color:'var(--tx)'}},pb.lift),
+                delta!==null&&el('div',{style:{fontSize:10,color:delta>=0?'var(--gn)':'var(--rd2)',marginTop:1}},(delta>=0?'▲ +':'▼ ')+delta+pb.unit+' from prev')
+              ),
+              el('div',{style:{fontSize:15,fontWeight:800,color:'var(--go)',fontFamily:"'Barlow Condensed',sans-serif"}},pb.weight+' '+pb.unit),
+              el('div',{style:{fontSize:11,color:'var(--t3)'}},pb.date),
+              Xb(()=>delPb(pb.id))
+            );
+          })
+        );
+      })()
     )
   );
 };
