@@ -849,7 +849,7 @@ useEffect(()=>{
 },[tasks,habits,tf,journal,protocols]);
 // Dark mode
 useEffect(()=>{document.body.classList.toggle('dark',dark);sts('dark-mode',dark);},[dark]);
-useEffect(()=>{if(typeof checkAchievements==='function')checkAchievements();},[adates,rlog.length,sales.length,stockists.length,met.ig,totXP]);
+useEffect(()=>{if(typeof checkAchievements==='function')checkAchievements();},[adates,rlog.length,sales.length,stockists.length,met.ig]);
 
 // Firebase hydration — on mount: if Firebase is empty, push local data up first (migration)
 const hydrate=(d)=>{
