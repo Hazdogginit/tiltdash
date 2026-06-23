@@ -208,6 +208,15 @@ body.dark .sb-section{color:rgba(255,255,255,0.25);}
 .banner{background:rgba(255,251,235,0.75);backdrop-filter:var(--blur);border:1px solid rgba(251,191,36,0.4);border-radius:18px;padding:16px 20px;margin-bottom:14px;box-shadow:var(--sh);}
 .notif{position:fixed;top:18px;right:22px;background:rgba(255,255,255,0.9);backdrop-filter:var(--blur);border-left:3px solid #D97706;color:#92400E;font-size:12px;padding:11px 18px;border-radius:14px;z-index:9999;box-shadow:var(--shm);animation:slin .3s ease;pointer-events:none;font-weight:600;letter-spacing:.2px;}
 @keyframes slin{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes xppop{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1;transform:translateY(-8px) scale(1.2)}80%{opacity:1;transform:translateY(-28px) scale(1)}100%{opacity:0;transform:translateY(-44px) scale(.8)}}
+@keyframes lvlup{0%{opacity:0;transform:scale(.5) rotate(-10deg)}40%{opacity:1;transform:scale(1.15) rotate(2deg)}70%{transform:scale(.95) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes badgepop{0%{opacity:0;transform:scale(0) rotate(-20deg)}60%{transform:scale(1.2) rotate(5deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+.xp-pop{position:fixed;pointer-events:none;z-index:9999;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:#D97706;text-shadow:0 1px 4px rgba(0,0,0,.2);animation:xppop 1.2s ease forwards;}
+.lvl-banner{position:fixed;top:0;left:0;right:0;z-index:10000;background:linear-gradient(135deg,#D97706,#FBBF24,#D97706);background-size:200% auto;animation:shimmer 2s linear infinite;padding:14px 24px;display:flex;align-items:center;justify-Content:center;gap:12px;box-shadow:0 4px 20px rgba(217,119,6,.4);}
+.badge-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border-radius:14px;text-align:center;transition:transform .15s;cursor:default;}
+.badge-card:hover{transform:scale(1.05);}
+.badge-card.locked{opacity:.35;filter:grayscale(1);}
 .contact-card{background:rgba(255,255,255,0.65);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,0.8);border-radius:16px;padding:14px;margin-bottom:8px;cursor:pointer;box-shadow:var(--sh);transition:box-shadow .15s;}
 .contact-card:hover,.contact-card.on{box-shadow:var(--shm);}
 .debt-card{background:rgba(255,255,255,0.65);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,0.8);border-radius:16px;margin-bottom:10px;overflow:hidden;box-shadow:var(--sh);}
@@ -582,6 +591,11 @@ const[addC,setAddC]=useState(false);
 const[newC,setNewC]=useState({name:'',role:'',phone:'',email:'',last:TODAY,fu:'',notes:''});
 const[exC,setExC]=useState(null);
 const[sg,setSg]=useState({});
+// ── Gamification ──
+const[xpPops,setXpPops]=useState([]);
+const[lvlUpBanner,setLvlUpBanner]=useState(null); // {name,level}
+const[achievements,setAchievements]=useState(()=>stg('achievements')||{});
+const[showTrophies,setShowTrophies]=useState(false);
 // Sleep tracker
 const[sleepLog,setSleepLog]=useState(()=>stg('sleep-log')||[]);
 const[addSleep,setAddSleep]=useState(false);
@@ -800,6 +814,7 @@ useEffect(()=>{
 },[tasks,habits,tf,journal,protocols]);
 // Dark mode
 useEffect(()=>{document.body.classList.toggle('dark',dark);sts('dark-mode',dark);},[dark]);
+useEffect(()=>{if(typeof checkAchievements==='function')checkAchievements();},[streak,journalStreak,morningStreak,rlog.length,sales.length,stockists.length,met.ig,totXP]);
 
 // Firebase hydration — on mount: if Firebase is empty, push local data up first (migration)
 const hydrate=(d)=>{
@@ -958,6 +973,103 @@ const pMins=Math.floor(ps/60);const pSecs=ps%60;
 const pct=(v,t)=>t?Math.min(100,((+v||0)/t)*100):0;
 const showN=msg=>{setNotif(msg);setTimeout(()=>setNotif(null),2500);};
 
+// ── Achievements catalogue ─────────────────────────────────────
+const ACHIEVEMENTS=[
+  // Streaks
+  {id:'streak3',   icon:'🔥', name:'On Fire',        desc:'3-day streak',         cat:'streak'},
+  {id:'streak7',   icon:'⚡', name:'Locked In',       desc:'7-day streak',         cat:'streak'},
+  {id:'streak30',  icon:'💎', name:'Unbreakable',     desc:'30-day streak',        cat:'streak'},
+  // Workouts
+  {id:'workout1',  icon:'🏋️', name:'First Rep',       desc:'Log first workout',    cat:'training'},
+  {id:'workout10', icon:'💪', name:'10 Sessions',     desc:'Log 10 workouts',      cat:'training'},
+  {id:'workout50', icon:'🏆', name:'50 Sessions',     desc:'Log 50 workouts',      cat:'training'},
+  {id:'run5k',     icon:'🏃', name:'5K Club',         desc:'Log a 5km+ run',       cat:'training'},
+  {id:'run21k',    icon:'🥇', name:'Half Warrior',    desc:'Log a 21km+ run',      cat:'training'},
+  // TILT business
+  {id:'firstsale', icon:'💰', name:'First Sale',      desc:'Record first sale',    cat:'tilt'},
+  {id:'sale10',    icon:'📦', name:'10 Sales',        desc:'Record 10 sales',      cat:'tilt'},
+  {id:'stockist1', icon:'🏪', name:'First Stockist',  desc:'Add first stockist',   cat:'tilt'},
+  {id:'stockist5', icon:'🗺️', name:'5 Stockists',     desc:'5 stockists added',    cat:'tilt'},
+  {id:'ig1k',      icon:'📸', name:'1K IG',           desc:'Reach 1K Instagram',   cat:'tilt'},
+  {id:'ig5k',      icon:'🌟', name:'5K IG',           desc:'Reach 5K Instagram',   cat:'tilt'},
+  // Habits
+  {id:'journal7',  icon:'✍️', name:'Scribe',          desc:'7-day journal streak', cat:'habit'},
+  {id:'morning7',  icon:'🌅', name:'Early Bird',      desc:'7-day morning streak', cat:'habit'},
+  {id:'eod7',      icon:'🌙', name:'Night Owl',       desc:'7 EOD reviews done',   cat:'habit'},
+  // Milestones
+  {id:'lvl3',      icon:'🎖️', name:'Sergeant',        desc:'Reach Level 3',        cat:'level'},
+  {id:'lvl5',      icon:'👑', name:'Commander',       desc:'Reach Level 5',        cat:'level'},
+  {id:'lvl6',      icon:'🌌', name:'Legend',          desc:'Reach Level 6',        cat:'level'},
+  {id:'goals10',   icon:'🎯', name:'Goal Getter',     desc:'Complete 10 goals',    cat:'goals'},
+  {id:'hundred1',  icon:'💯', name:'100 Days',        desc:'Complete a 100-day cycle',cat:'goals'},
+];
+
+// ── XP pop helper ──────────────────────────────────────────────
+const popXP=(amount,multiplier=1)=>{
+  const total=Math.round(amount*(multiplier||1));
+  const id=Date.now()+Math.random();
+  const x=Math.random()*40+30; // % from left
+  setXpPops(p=>[...p,{id,amount:total,x,multiplier}]);
+  setTimeout(()=>setXpPops(p=>p.filter(x=>x.id!==id)),1300);
+  return total;
+};
+
+// ── Streak XP multiplier ───────────────────────────────────────
+const streakMult=streak>=30?2:streak>=14?1.75:streak>=7?1.5:streak>=3?1.25:1;
+
+// ── Award XP with level-up check ──────────────────────────────
+const awardXP=(base,skipPop=false)=>{
+  const earned=skipPop?base:popXP(base,streakMult);
+  const prevLvl=getLvl(totXP);
+  const newTotal=totXP+earned;
+  const newLvl=getLvl(newTotal);
+  if(newLvl.i>prevLvl.i){
+    setLvlUpBanner({name:newLvl.n,level:newLvl.i+1});
+    setTimeout(()=>setLvlUpBanner(null),4000);
+  }
+  // persist daily XP
+  const newSg={...sg,[TODAY]:(sg[TODAY]||0)+earned};
+  setSg(newSg);sts('score-grid',newSg);
+};
+
+// ── Unlock achievement ────────────────────────────────────────
+const unlock=(id)=>{
+  if(achievements[id])return;
+  const ach=ACHIEVEMENTS.find(a=>a.id===id);
+  if(!ach)return;
+  const u={...achievements,[id]:TODAY};
+  setAchievements(u);sts('achievements',u);
+  showN(ach.icon+' Achievement unlocked: '+ach.name+'!');
+  popXP(100,1);
+};
+
+// ── Check achievements automatically ─────────────────────────
+const checkAchievements=()=>{
+  if(streak>=3)unlock('streak3');
+  if(streak>=7)unlock('streak7');
+  if(streak>=30)unlock('streak30');
+  if(journalStreak>=7)unlock('journal7');
+  if(morningStreak>=7)unlock('morning7');
+  const eodCount=Object.keys(Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];}).reduce((acc,ds)=>{const e=stg('eod-'+ds);if(e?.saved)acc[ds]=1;return acc;},{})).length;
+  if(eodCount>=7)unlock('eod7');
+  if(rlog.length>=1)unlock('workout1');
+  if(rlog.length>=10)unlock('workout10');
+  if(rlog.length>=50)unlock('workout50');
+  if(rlog.some(r=>+r.dist>=5))unlock('run5k');
+  if(rlog.some(r=>+r.dist>=21))unlock('run21k');
+  if(sales.length>=1)unlock('firstsale');
+  if(sales.length>=10)unlock('sale10');
+  if(stockists.length>=1)unlock('stockist1');
+  if(stockists.length>=5)unlock('stockist5');
+  if(met.ig>=1000)unlock('ig1k');
+  if(met.ig>=5000)unlock('ig5k');
+  if(lvl.i>=2)unlock('lvl3');
+  if(lvl.i>=4)unlock('lvl5');
+  if(lvl.i>=5)unlock('lvl6');
+  const totalGoalsDone=(goals?.ms||[]).filter(g=>g.done).length+['yr','qt','mo','wk','dy'].flatMap(k=>(goals?.[k]||[]).filter(g=>g.done)).length;
+  if(totalGoalsDone>=10)unlock('goals10');
+};
+
 // Handlers
 const saveMet=v=>{const u={...met,...v};setMet(u);sts('tilt-met',u);};
 const addGoal=k=>{const t=(ngt[k]||'').trim();if(!t)return;const u={...goals,[k]:[...(goals[k]||[]),{id:Date.now()+'',t,done:false}]};setGoals(u);sts('tilt-goals',u);setNgt(x=>({...x,[k]:''}));};
@@ -967,7 +1079,7 @@ const togMs=id=>{const u={...goals,ms:goals.ms.map(m=>m.id===id?{...m,done:!m.do
 const updTf=(f,v)=>{const u={...tf,[f]:v,_t:Date.now()};setTf(u);sts('fit-'+TODAY,u);};
 const togSess=k=>{const u={...tf,[k]:!tf[k],_t:Date.now()};setTf(u);sts('fit-'+TODAY,u);};
 const addTask=()=>{if(!nt.trim())return;const u=[...tasks,{id:Date.now()+'',text:nt.trim(),pri:np,done:false}];setTasks(u);sts('tasks-'+TODAY,u);setNt('');};
-const togTask=id=>{const u=tasks.map(t=>t.id===id?{...t,done:!t.done}:t);setTasks(u);sts('tasks-'+TODAY,u);};
+const togTask=id=>{const t=tasks.find(x=>x.id===id);const wasD=t?.done;const u=tasks.map(x=>x.id===id?{...x,done:!x.done}:x);setTasks(u);sts('tasks-'+TODAY,u);if(!wasD&&t)awardXP(t.pri==='H'?25:t.pri==='M'?15:10);};
 const delTask=id=>{const u=tasks.filter(t=>t.id!==id);setTasks(u);sts('tasks-'+TODAY,u);};
 // togH is defined below with dynamic protocols
 const saveJ=()=>{sts('journal-'+TODAY,journal);setJok(true);showN('Journal saved');};
@@ -988,19 +1100,19 @@ const doPay=id=>{if(!newP.amount)return;const u=debts.map(d=>d.id===id?{...d,pay
 const doAddFin=()=>{if(!newF.amount)return;const u=[...fin,{id:Date.now()+'',date:newF.date||TODAY,type:newF.type,amount:+newF.amount,cat:newF.cat,note:newF.note}];setFin(u);sts('tilt-fin',u);setNewF({type:'revenue',date:TODAY,amount:'',cat:'Sales',note:''});setAddF(false);};
 const doStock=dir=>{if(!newS.cans&&!newS.slabs)return;const u=[{id:Date.now()+'',date:TODAY,dir,sku:newS.sku||'All',...newS,cans:+newS.cans||0,slabs:+newS.slabs||0},...slog];setSlog(u);sts('stock-log',u);showN(dir==='in'?'Stock received ✓':'Usage logged ✓');setAddS(null);setNewS({sku:'Original',cans:'',slabs:'',cat:'purchase',note:''});};
 const doAddSale=()=>{if(!newSale.buyer||(!newSale.cans&&!newSale.slabs))return;const cans=(+newSale.cans||0)+(+newSale.slabs||0)*24;const u=[{id:Date.now()+'',date:TODAY,...newSale,cans:+newSale.cans||0,slabs:+newSale.slabs||0,totalCans:cans,price:+newSale.price||0},...sales];setSales(u);sts('tilt-sales',u);// also log as stock-out
-const so=[{id:'so'+Date.now(),date:TODAY,dir:'out',sku:newSale.sku,cans:+newSale.cans||0,slabs:+newSale.slabs||0,cat:'sale',note:'Sale to '+newSale.buyer},...slog];setSlog(so);sts('stock-log',so);showN('Sale recorded — '+cans+' cans to '+newSale.buyer);setNewSale({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});setAddSale(false);};
+const so=[{id:'so'+Date.now(),date:TODAY,dir:'out',sku:newSale.sku,cans:+newSale.cans||0,slabs:+newSale.slabs||0,cat:'sale',note:'Sale to '+newSale.buyer},...slog];setSlog(so);sts('stock-log',so);showN('Sale recorded — '+cans+' cans to '+newSale.buyer);setNewSale({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});setAddSale(false);awardXP(50);};
 const delSale=id=>{const u=sales.filter(s=>s.id!==id);setSales(u);sts('tilt-sales',u);};
 const addSku=()=>{if(!newSkuName.trim()||skus.includes(newSkuName.trim()))return;const u=[...skus,newSkuName.trim()];setSkus(u);sts('tilt-skus',u);setNewSkuName('');setAddSkuMode(false);showN('SKU added: '+newSkuName.trim());};
 const delSku=s=>{const u=skus.filter(x=>x!==s);setSkus(u);sts('tilt-skus',u);};;
 const saveMCfg=()=>{const u={rd:mcd.rd||mCfg.rd,rn:mcd.rn||mCfg.rn,km:+mcd.km||mCfg.km};setMCfg(u);sts('mara-cfg',u);if(mcd.sw||mcd.gw){const b={sw:+mcd.sw||base.sw,gw:+mcd.gw||base.gw};setBase(b);sts('fit-base',b);}setMSetup(false);showN('Training setup saved');};
-const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');};
+const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');awardXP(newR.type==='race'?100:newR.type==='long'?60:newR.type==='tempo'?45:30);};
 const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
 const togWP=(f)=>{const u={...wp,[f]:!wp[f]};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
-const togWo=day=>{const u={...wplan,[day]:{...wplan[day],done:!wplan[day].done}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);};
+const togWo=day=>{const wasDone=wplan[day]?.done;const u={...wplan,[day]:{...wplan[day],done:!wplan[day].done}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);if(!wasDone)awardXP(30);};
 const saveWo=day=>{const u={...wplan,[day]:{...wplan[day],...newWo}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);setEditWday(null);setNewWo({label:'',type:'Run'});showN('Workout saved');};
 const clearWo=day=>{const u={...wplan,[day]:{label:'',type:'Rest',done:false}};setWplan(u);sts('workout-plan-'+WEEK_KEY,u);};
 const saveEod=(f,v)=>{const u={...eod,[f]:v};setEod(u);sts(EOD_KEY,u);};
-const submitEod=()=>{const u={...eod,saved:true,date:TODAY,time:new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})};setEod(u);sts(EOD_KEY,u);setEodOpen(false);showN('EOD review saved ✓');};
+const submitEod=()=>{const u={...eod,saved:true,date:TODAY,time:new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})};setEod(u);sts(EOD_KEY,u);setEodOpen(false);showN('EOD review saved ✓');awardXP(40);};
 // Read past EOD reviews (last 30 days)
 const pastEods=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);const ds=d.toISOString().split('T')[0];const e=stg('eod-'+ds);return e&&e.saved?{...e,date:ds}:null;}).filter(Boolean);
 const doAddBook=()=>{if(!newBk.title)return;const u=[...books,{id:Date.now()+'',startDate:TODAY,...newBk}];setBooks(u);sts('books',u);setNewBk({title:'',author:'',status:'reading',notes:''});setAddBk(false);};
@@ -1055,7 +1167,7 @@ const saveMorning=list=>{setMorning(list);sts('morning-items',list);localStorage
     }
   }
 };
-const togMorning=id=>saveMorning(morning.map(m=>m.id===id?{...m,done:!m.done}:m));
+const togMorning=id=>{const item=morning.find(m=>m.id===id);const wasDone=item?.done;saveMorning(morning.map(m=>m.id===id?{...m,done:!m.done}:m));if(!wasDone)awardXP(15);};
 const addMorningItem=()=>{if(!newMorning.trim())return;saveMorning([...morning,{id:'m'+Date.now(),text:newMorning.trim(),done:false}]);setNewMorning('');};
 const delMorningItem=id=>saveMorning(morning.filter(m=>m.id!==id));
 // ── Feature 2: Wellness handlers ──
@@ -1201,7 +1313,27 @@ const tHome=()=>{
   el('div',{style:{marginBottom:16}},
     el('div',{style:{fontSize:11,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:4}},DLONG+' · Week '+Math.ceil(DAYYR/7)),
     el('div',{style:{fontSize:26,fontWeight:700,letterSpacing:-.5,color:'var(--tx)',lineHeight:1.1}},greet),
-    todayAff&&el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6}},'"'+todayAff+'"')
+    todayAff&&el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6}},'"'+todayAff+'"'),
+    // XP + level bar
+    el('div',{style:{display:'flex',alignItems:'center',gap:10,marginTop:12,background:'rgba(255,255,255,0.5)',borderRadius:12,padding:'8px 12px'}},
+      el('div',{style:{width:32,height:32,borderRadius:9,background:'linear-gradient(135deg,#D97706,#FBBF24)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:'#fff',flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif"}},(lvl.i+1)+''),
+      el('div',{style:{flex:1}},
+        el('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
+          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--tx)'}},'Lvl '+(lvl.i+1)+' · '+lvl.n),
+          el('span',{style:{fontSize:11,color:'var(--t3)'}},totXP.toLocaleString()+' XP')
+        ),
+        el('div',{style:{height:6,borderRadius:99,background:'rgba(0,0,0,0.08)',overflow:'hidden'}},
+          el('div',{style:{height:'100%',borderRadius:99,background:'linear-gradient(90deg,#D97706,#FBBF24)',width:xpPct+'%',transition:'width .4s'}})
+        )
+      ),
+      streakMult>1&&el('div',{style:{background:'linear-gradient(135deg,#D97706,#F59E0B)',borderRadius:8,padding:'4px 8px',textAlign:'center',flexShrink:0}},
+        el('div',{style:{fontSize:11,fontWeight:800,color:'#fff',lineHeight:1}},('×'+streakMult)),
+        el('div',{style:{fontSize:8,color:'rgba(255,255,255,.8)',letterSpacing:.5}},('XP MULT'))
+      ),
+      el('button',{onClick:()=>setShowTrophies(true),style:{background:'transparent',border:'1px solid rgba(217,119,6,0.3)',borderRadius:8,padding:'4px 8px',cursor:'pointer',fontSize:11,color:'var(--go)',fontWeight:700}},
+        '🏆 '+Object.keys(achievements).length
+      )
+    )
   ),
 
   // ── Quick stats row ──────────────────────────────────────────
@@ -3738,6 +3870,53 @@ const goSection=sid=>{
 
 return el('div',{className:'layout'},
   notif&&el('div',{className:'notif'},notif),
+
+  // ── XP floating pops ────────────────────────────────────────
+  ...xpPops.map(p=>el('div',{key:p.id,className:'xp-pop',style:{left:p.x+'%',top:'60%'}},
+    (p.multiplier>1?'⚡':'')+'+'+(p.amount)+' XP'+(p.multiplier>1?' ×'+p.multiplier:'')
+  )),
+
+  // ── Level-up banner ─────────────────────────────────────────
+  lvlUpBanner&&el('div',{className:'lvl-banner',style:{animation:'lvlup .5s ease, shimmer 2s linear infinite'}},
+    el('div',{style:{fontSize:28}},['🎖️','⭐','💫','🏅','👑','🌌'][lvlUpBanner.level-1]||'🏆'),
+    el('div',{style:{textAlign:'center'}},
+      el('div',{style:{fontSize:11,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'rgba(255,255,255,.8)'}},('LEVEL UP!')),
+      el('div',{style:{fontSize:20,fontWeight:800,color:'#fff',fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}},('Level '+lvlUpBanner.level+' · '+lvlUpBanner.name))
+    ),
+    el('div',{style:{fontSize:28}},['🎖️','⭐','💫','🏅','👑','🌌'][lvlUpBanner.level-1]||'🏆')
+  ),
+
+  // ── Trophy shelf modal ──────────────────────────────────────
+  showTrophies&&el('div',{style:{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:16},onClick:e=>{if(e.target===e.currentTarget)setShowTrophies(false);}},
+    el('div',{style:{background:'var(--sf)',backdropFilter:'blur(24px)',WebkitBackdropFilter:'blur(24px)',border:'1px solid rgba(255,255,255,0.8)',borderRadius:20,padding:24,width:'100%',maxWidth:560,maxHeight:'88vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.25)'}},
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},
+        el('div',null,
+          el('div',{style:{fontSize:11,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},Object.keys(achievements).length+' / '+ACHIEVEMENTS.length+' unlocked'),
+          el('div',{style:{fontSize:20,fontWeight:700,color:'var(--tx)'}},'🏆 Trophy Shelf')
+        ),
+        el('button',{onClick:()=>setShowTrophies(false),style:{width:32,height:32,borderRadius:8,border:'1px solid var(--br)',background:'var(--cd)',cursor:'pointer',fontSize:16,color:'var(--t3)',display:'flex',alignItems:'center',justifyContent:'center'}},'×')
+      ),
+      // Group by category
+      ...['streak','training','tilt','habit','level','goals'].map(cat=>{
+        const catAchs=ACHIEVEMENTS.filter(a=>a.cat===cat);
+        const catLabel={streak:'🔥 Streaks',training:'🏋️ Training',tilt:'⚡ TILT Business',habit:'📋 Habits',level:'🎖️ Levels',goals:'🎯 Goals'}[cat];
+        return el('div',{key:cat,style:{marginBottom:20}},
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:10}},catLabel),
+          el('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
+            ...catAchs.map(a=>{
+              const unlocked=!!achievements[a.id];
+              return el('div',{key:a.id,className:'badge-card'+(unlocked?'':' locked'),style:{background:unlocked?'linear-gradient(135deg,#FFFBEB,#FEF3C7)':'var(--cd)',border:'1px solid '+(unlocked?'#F0E0B0':'var(--br)'),width:90,animation:unlocked?'badgepop .4s ease':'none'}},
+                el('div',{style:{fontSize:28,lineHeight:1,marginBottom:4}},a.icon),
+                el('div',{style:{fontSize:11,fontWeight:700,color:unlocked?'var(--tx)':'var(--t3)',lineHeight:1.2}},a.name),
+                el('div',{style:{fontSize:9,color:'var(--t3)',marginTop:2,lineHeight:1.3}},unlocked?('Earned '+achievements[a.id]):a.desc)
+              );
+            })
+          )
+        );
+      })
+    )
+  ),
+
   // ── EOD floating button ─────────────────────────────────────
   el('button',{onClick:()=>setEodOpen(true),title:'End-of-Day Review',style:{position:'fixed',bottom:24,right:24,zIndex:998,width:52,height:52,borderRadius:'50%',background:eod.saved?'var(--gn)':'#D97706',color:'#fff',border:'none',cursor:'pointer',fontSize:22,boxShadow:'0 4px 16px rgba(0,0,0,0.18)',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}},eod.saved?'✓':'🌙'),
   // ── EOD modal ───────────────────────────────────────────────
@@ -3807,8 +3986,12 @@ return el('div',{className:'layout'},
       )
     ),
     el('div',{className:'sb-footer'},
+      el('button',{onClick:()=>setShowTrophies(true),title:'Trophy Shelf',style:{width:34,height:34,background:'rgba(255,255,255,0.55)',border:'1px solid rgba(255,255,255,0.7)',borderRadius:10,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}},
+        '🏆',
+        Object.keys(achievements).length>0&&el('div',{style:{position:'absolute',top:-4,right:-4,width:16,height:16,borderRadius:'50%',background:'#D97706',color:'#fff',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}},Object.keys(achievements).length)
+      ),
       el('button',{onClick:()=>setDark(!dark),title:dark?'Light mode':'Dark mode',style:{width:34,height:34,background:dark?'rgba(255,255,255,.06)':'rgba(255,255,255,0.55)',border:'1px solid rgba(255,255,255,0.7)',borderRadius:10,cursor:'pointer',color:'var(--t3)',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center'}},dark?'☀️':'🌙'),
-      el('div',{style:{width:7,height:7,borderRadius:'50%',background:{idle:'var(--t3)',syncing:'#F59E0B',synced:'#12B76A',error:'#F04438'}[syncStatus],title:{idle:'Offline',syncing:'Syncing',synced:'Live',error:'Error'}[syncStatus]}})
+      el('div',{style:{width:7,height:7,borderRadius:'50%',background:{idle:'var(--t3)',syncing:'#F59E0B',synced:'#12B76A',error:'#F04438'}[syncStatus]}})
     )
   ),
   el('div',{className:'main'},
