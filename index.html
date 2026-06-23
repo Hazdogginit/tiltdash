@@ -507,6 +507,9 @@ function getOrthoInfo(ds){
   return{feast,fast,fNote,fastCol};
 }
 
+const SKUS=['Original','Tropical','Watermelon','Berry Blast','Mango','Other'];
+const SKU_DEF=Object.fromEntries(SKUS.map(s=>[s,0]));
+
 function App(){
 const[tab,setTab]=useState('home');
 const[section,setSection]=useState('home');
@@ -799,8 +802,6 @@ const EC=['COGS','Marketing','Operations','Equipment','Salary','Tax','Other'];
 const SCI=['Purchase','Production','Return','Transfer In'];
 const SCO=['Marketing','Sampling','Event','Activation','Damage','Internal','Transfer Out','Other'];
 // TILT SKUs
-const SKUS=['Original','Tropical','Watermelon','Berry Blast','Mango','Other'];
-const SKU_DEF=Object.fromEntries(SKUS.map(s=>[s,0]));
 
 // Load streak grid on mount (read all xp days from localStorage)
 useEffect(()=>{
