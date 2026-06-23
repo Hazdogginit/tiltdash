@@ -614,6 +614,8 @@ const[addIdea,setAddIdea]=useState(false);
 const[newIdea,setNewIdea]=useState({title:'',platform:'TikTok',type:'TILT',status:'idea',notes:''});
 // Daily mood/energy
 const[mood,setMood]=useState(()=>stg('mood-'+TODAY)||{mood:0,energy:0,word:''});
+const[water,setWater]=useState(()=>stg('water-'+TODAY)||0);
+const[waterGoal,setWaterGoal]=useState(()=>stg('water-goal')||8);
 // Personal budget
 const[pbud,setPbud]=useState(()=>stg('personal-budget')||{income:'',items:[]});
 const[addBI,setAddBI]=useState(false);
@@ -642,6 +644,7 @@ const[competitors,setCompetitors]=useState(()=>stg('competitors')||[
   {id:'c3',name:'Celsius',ig:0,tt:0,snapshots:[]},
   {id:'c4',name:'Gorilla Energy',ig:0,tt:0,snapshots:[]},
 ]);
+const[compExpanded,setCompExpanded]=useState({});
 const[addComp,setAddComp]=useState(false);
 const[newComp,setNewComp]=useState({name:'',ig:'',tt:''});
 const[failList,setFailList]=useState(()=>{
@@ -1122,6 +1125,8 @@ const doAddContact=()=>{if(!newC.name)return;const u=[...contacts,{id:Date.now()
 const checkIn=id=>{const u=contacts.map(c=>c.id===id?{...c,last:TODAY}:c);setContacts(u);sts('contacts',u);showN('Check-in logged');};
 // Mood
 const saveMood=(f,v)=>{const u={...mood,[f]:v};setMood(u);sts('mood-'+TODAY,u);};
+const addWater=()=>{const v=Math.min(water+1,20);setWater(v);sts('water-'+TODAY,v);if(v===waterGoal)awardXP(20);};
+const resetWater=()=>{setWater(0);sts('water-'+TODAY,0);};
 // Sleep
 const doAddSleep=()=>{if(!newSleep.bed||!newSleep.wake)return;const[bh,bm]=(newSleep.bed||'00:00').split(':').map(Number);const[wh,wm]=(newSleep.wake||'00:00').split(':').map(Number);let hrs=wh-bh+(wm-bm)/60;if(hrs<0)hrs+=24;const u=[{id:Date.now()+'',date:newSleep.date||TODAY,...newSleep,hours:+hrs.toFixed(1)},...sleepLog].slice(0,90);setSleepLog(u);sts('sleep-log',u);setNewSleep({date:TODAY,bed:'',wake:'',quality:3,energy:3,notes:''});setAddSleep(false);showN('Sleep logged — '+hrs.toFixed(1)+'h');};
 // Measurements
@@ -1347,6 +1352,31 @@ const tHome=()=>{
     )
   ),
 
+  // ── Deep Work Today ──────────────────────────────────────────
+  el('div',{style:{display:'flex',gap:8,marginBottom:14}},
+    el('div',{style:{flex:1,background:'var(--cd)',borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10}},
+      el('div',{style:{fontSize:22}},'🎯'),
+      el('div',null,
+        el('div',{style:{fontSize:20,fontWeight:800,color:'var(--go)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},pSessions.filter(s=>s.date===TODAY).length),
+        el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,textTransform:'uppercase',marginTop:2}},'Focus Sessions')
+      )
+    ),
+    el('div',{style:{flex:1,background:'var(--cd)',borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10}},
+      el('div',{style:{fontSize:22}},'⏱'),
+      el('div',null,
+        el('div',{style:{fontSize:20,fontWeight:800,color:'var(--go)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},pSessions.filter(s=>s.date===TODAY).reduce((s,x)=>s+(x.duration||25),0)+'m'),
+        el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,textTransform:'uppercase',marginTop:2}},'Deep Work')
+      )
+    ),
+    el('div',{style:{flex:1,background:'var(--cd)',borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10}},
+      el('div',{style:{fontSize:22}},'💰'),
+      el('div',null,
+        el('div',{style:{fontSize:20,fontWeight:800,color:'var(--gn)',fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}},FMT(mRev)),
+        el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:.5,textTransform:'uppercase',marginTop:2}},'Rev This Month')
+      )
+    )
+  ),
+
   // ── Morning routine (daily reset) ───────────────────────────
   el('div',{className:'card',style:{marginBottom:14,background:morningDone?'linear-gradient(135deg,#ECFDF5,#F0FDF4)':undefined,border:morningDone?'1px solid #A7F3D0':undefined}},
     el('div',{className:'ph'},
@@ -1376,6 +1406,35 @@ const tHome=()=>{
       el('div',{style:{fontSize:13,color:wo.done?'var(--t3)':'var(--tx)',textDecoration:wo.done?'line-through':'none',flex:1}},wo.label)
     ):el('div',{style:{fontSize:13,color:'var(--t3)',fontStyle:'italic',marginTop:6,cursor:'pointer'},onClick:()=>setTab('training')},'No workout planned — tap to add in Training')
   );})(),
+
+  // ── Daily Check-in ──────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14}},
+    el('div',{className:'ph'},
+      el('div',{className:'pt'},'⚡ Daily Check-in'),
+      (mood.mood>0&&mood.energy>0)&&el('div',{style:{fontSize:10,color:'var(--gn)',fontWeight:700,background:'#D1FAE5',padding:'2px 8px',borderRadius:99}},'Done ✓')
+    ),
+    el('div',{style:{display:'flex',gap:16,marginTop:8,flexWrap:'wrap'}},
+      el('div',{style:{flex:1,minWidth:120}},
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},'Mood'),
+        el('div',{style:{display:'flex',gap:4}},
+          [['😔',1],['😐',2],['🙂',3],['😊',4],['🔥',5]].map(([e,n])=>
+            el('button',{key:n,onClick:()=>saveMood('mood',n),style:{flex:1,padding:'6px 2px',border:'1.5px solid '+(mood.mood===n?'var(--go)':'var(--br)'),borderRadius:8,background:mood.mood===n?'#FFF7ED':'var(--sf)',cursor:'pointer',fontSize:18,lineHeight:1}},e)
+          )
+        )
+      ),
+      el('div',{style:{flex:1,minWidth:120}},
+        el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},'Energy'),
+        el('div',{style:{display:'flex',gap:4}},
+          [['💀',1],['😴',2],['😐',3],['⚡',4],['🚀',5]].map(([e,n])=>
+            el('button',{key:n,onClick:()=>saveMood('energy',n),style:{flex:1,padding:'6px 2px',border:'1.5px solid '+(mood.energy===n?'var(--bl2)':'var(--br)'),borderRadius:8,background:mood.energy===n?'#EFF6FF':'var(--sf)',cursor:'pointer',fontSize:18,lineHeight:1}},e)
+          )
+        )
+      )
+    ),
+    el('div',{style:{marginTop:8}},
+      el('input',{className:'ipt',style:{fontSize:12},value:mood.word||'',onChange:e=>saveMood('word',e.target.value),placeholder:'One word to describe today… (e.g. focused, sluggish, electric)'})
+    )
+  ),
 
   // ── Gratitude ────────────────────────────────────────────────
   el('div',{className:'card',style:{marginBottom:14}},
@@ -1508,6 +1567,30 @@ const tHome=()=>{
         )
       ),
       el('button',{onClick:()=>setEodOpen(true),style:{fontSize:11,background:'transparent',border:'1px solid var(--gn)',borderRadius:8,padding:'4px 10px',cursor:'pointer',color:'var(--gn)'}}, 'Edit')
+    )
+  ),
+
+  // ── Water Tracker ───────────────────────────────────────────
+  el('div',{className:'card',style:{marginBottom:14}},
+    el('div',{className:'ph'},
+      el('div',null,
+        el('div',{className:'pt'},'💧 Hydration'),
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},water+' / '+waterGoal+' glasses · resets daily')
+      ),
+      el('div',{style:{display:'flex',alignItems:'center',gap:8}},
+        el('div',{style:{fontSize:13,fontWeight:700,color:water>=waterGoal?'var(--bl2)':'var(--t3)'}},Math.round(water/waterGoal*100)+'%'),
+        el('button',{onClick:addWater,style:{padding:'6px 14px',borderRadius:8,border:'none',background:'var(--bl2)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}},'+1 Glass'),
+        water>0&&el('button',{onClick:resetWater,style:{padding:'6px 10px',borderRadius:8,border:'1px solid var(--br)',background:'transparent',color:'var(--t3)',fontSize:11,cursor:'pointer'}},'Reset')
+      )
+    ),
+    el('div',{style:{display:'flex',gap:4,flexWrap:'wrap',marginTop:10}},
+      ...Array.from({length:waterGoal},(_,i)=>
+        el('div',{key:i,style:{fontSize:18,opacity:i<water?1:0.2,transition:'opacity .2s',cursor:'pointer'},onClick:addWater},'💧')
+      )
+    ),
+    el('div',{style:{marginTop:6,display:'flex',alignItems:'center',gap:8}},
+      el('div',{style:{fontSize:10,color:'var(--t3)'}},'Goal:'),
+      el('input',{type:'number',min:1,max:20,className:'ipt',style:{width:60,fontSize:12},value:waterGoal,onChange:e=>{const v=+e.target.value||8;setWaterGoal(v);sts('water-goal',v);}})
     )
   ),
 
@@ -1934,23 +2017,50 @@ const tTilt=()=>el('div',null,
       const ttDelta=prev?c.tt-(prev.tt||0):null;
       const igVsTilt=c._isTilt?null:met.ig-c.ig;
       const ttVsTilt=c._isTilt?null:met.tt-c.tt;
-      return el('div',{key:c.id,style:{display:'grid',gridTemplateColumns:'minmax(110px,1.5fr) 1fr 1fr 1fr 1fr auto',gap:6,padding:'8px 4px',borderBottom:'1px solid var(--br)',alignItems:'center'}},
-        el('div',{style:{fontSize:13,fontWeight:c._isTilt?700:500,color:c._isTilt?'var(--go)':'var(--tx)'}},c.name),
-        el('div',null,
-          c._isTilt?el('span',{style:{fontSize:13,fontWeight:700,color:'var(--rd2)'}},c.ig.toLocaleString()):
-          el('input',{type:'number',style:{width:'100%',fontSize:13,fontWeight:600,border:'none',background:'transparent',outline:'none',color:'var(--tx)',padding:0},value:c.ig||'',onChange:e=>updComp(c.id,'ig',e.target.value),placeholder:'0'}),
-          igDelta!==null&&el('div',{style:{fontSize:9,color:igDelta>=0?'var(--gn)':'var(--rd2)',marginTop:1}},(igDelta>=0?'+':'')+igDelta.toLocaleString())
+      const isExp=!!compExpanded[c.id];
+      const daysSinceSnap=prev?Math.round((new Date(TODAY)-new Date(prev.date))/(86400000)):null;
+      return el('div',{key:c.id},
+        el('div',{style:{display:'grid',gridTemplateColumns:'minmax(110px,1.5fr) 1fr 1fr 1fr 1fr auto',gap:6,padding:'8px 4px',borderBottom:'1px solid var(--br)',alignItems:'center'}},
+          el('div',null,
+            el('div',{style:{fontSize:13,fontWeight:c._isTilt?700:500,color:c._isTilt?'var(--go)':'var(--tx)'}},c.name),
+            !c._isTilt&&(c.snapshots||[]).length>0&&el('button',{onClick:()=>setCompExpanded(p=>({...p,[c.id]:!p[c.id]})),style:{fontSize:9,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',padding:0,marginTop:2,display:'block'}},(c.snapshots.length)+' snapshot'+(c.snapshots.length!==1?'s':'')+' '+(isExp?'▲':'▼'))
+          ),
+          el('div',null,
+            c._isTilt?el('span',{style:{fontSize:13,fontWeight:700,color:'var(--rd2)'}},c.ig.toLocaleString()):
+            el('input',{type:'number',style:{width:'100%',fontSize:13,fontWeight:600,border:'none',background:'transparent',outline:'none',color:'var(--tx)',padding:0},value:c.ig||'',onChange:e=>updComp(c.id,'ig',e.target.value),placeholder:'0'}),
+            igDelta!==null&&el('div',{style:{fontSize:9,color:igDelta>=0?'var(--gn)':'var(--rd2)',marginTop:1}},(igDelta>=0?'+':'')+igDelta.toLocaleString())
+          ),
+          el('div',null,
+            c._isTilt?el('span',{style:{fontSize:13,fontWeight:700,color:'var(--go)'}},c.tt.toLocaleString()):
+            el('input',{type:'number',style:{width:'100%',fontSize:13,fontWeight:600,border:'none',background:'transparent',outline:'none',color:'var(--tx)',padding:0},value:c.tt||'',onChange:e=>updComp(c.id,'tt',e.target.value),placeholder:'0'}),
+            ttDelta!==null&&el('div',{style:{fontSize:9,color:ttDelta>=0?'var(--gn)':'var(--rd2)',marginTop:1}},(ttDelta>=0?'+':'')+ttDelta.toLocaleString())
+          ),
+          el('div',{style:{fontSize:12,fontWeight:600,color:igVsTilt===null?'var(--t3)':igVsTilt<0?'var(--rd2)':'var(--gn)'}},igVsTilt===null?'—':(igVsTilt>=0?'+':'')+igVsTilt.toLocaleString()),
+          el('div',{style:{fontSize:12,fontWeight:600,color:ttVsTilt===null?'var(--t3)':ttVsTilt<0?'var(--rd2)':'var(--gn)'}},ttVsTilt===null?'—':(ttVsTilt>=0?'+':'')+ttVsTilt.toLocaleString()),
+          el('div',{style:{display:'flex',gap:4}},
+            !c._isTilt&&Btn('📸',()=>snapComp(c.id),'',{fontSize:11,padding:'3px 7px',title:'Save snapshot'}),
+            !c._isTilt&&Xb(()=>delComp(c.id))
+          )
         ),
-        el('div',null,
-          c._isTilt?el('span',{style:{fontSize:13,fontWeight:700,color:'var(--go)'}},c.tt.toLocaleString()):
-          el('input',{type:'number',style:{width:'100%',fontSize:13,fontWeight:600,border:'none',background:'transparent',outline:'none',color:'var(--tx)',padding:0},value:c.tt||'',onChange:e=>updComp(c.id,'tt',e.target.value),placeholder:'0'}),
-          ttDelta!==null&&el('div',{style:{fontSize:9,color:ttDelta>=0?'var(--gn)':'var(--rd2)',marginTop:1}},(ttDelta>=0?'+':'')+ttDelta.toLocaleString())
-        ),
-        el('div',{style:{fontSize:12,fontWeight:600,color:igVsTilt===null?'var(--t3)':igVsTilt<0?'var(--rd2)':'var(--gn)'}},igVsTilt===null?'—':(igVsTilt>=0?'+':'')+igVsTilt.toLocaleString()),
-        el('div',{style:{fontSize:12,fontWeight:600,color:ttVsTilt===null?'var(--t3)':ttVsTilt<0?'var(--rd2)':'var(--gn)'}},ttVsTilt===null?'—':(ttVsTilt>=0?'+':'')+ttVsTilt.toLocaleString()),
-        el('div',{style:{display:'flex',gap:4}},
-          !c._isTilt&&Btn('📸',()=>snapComp(c.id),'',{fontSize:11,padding:'3px 7px',title:'Save snapshot'}),
-          !c._isTilt&&Xb(()=>delComp(c.id))
+        isExp&&!c._isTilt&&el('div',{style:{background:'var(--sf)',borderRadius:8,margin:'2px 0 8px',padding:'10px 12px',border:'1px solid var(--br)'}},
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:6}},'Snapshot History'),
+          daysSinceSnap!==null&&el('div',{style:{fontSize:11,color:'var(--t3)',marginBottom:8}},'Last snapshot: '+daysSinceSnap+' day'+(daysSinceSnap===1?'':'s')+' ago ('+prev.date+')'),
+          el('div',{style:{display:'grid',gridTemplateColumns:'100px 1fr 1fr 1fr 1fr',gap:4,padding:'4px 0',fontSize:9,fontWeight:700,letterSpacing:1.5,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4}},
+            el('div',null,'DATE'),el('div',null,'IG'),el('div',null,'IG +/-'),el('div',null,'TT'),el('div',null,'TT +/-')
+          ),
+          ...(c.snapshots||[]).map((snap,idx,arr)=>{
+            const prevSnap=arr[idx+1];
+            const igG=prevSnap!=null?snap.ig-(prevSnap.ig||0):null;
+            const ttG=prevSnap!=null?snap.tt-(prevSnap.tt||0):null;
+            const daysBetween=prevSnap?Math.round((new Date(snap.date)-new Date(prevSnap.date))/(86400000)):null;
+            return el('div',{key:snap.id,style:{display:'grid',gridTemplateColumns:'100px 1fr 1fr 1fr 1fr',gap:4,padding:'5px 0',borderBottom:'1px solid var(--br)',fontSize:12,alignItems:'center'}},
+              el('div',{style:{fontSize:11,color:'var(--t3)'}},snap.date+(daysBetween?' (+'+daysBetween+'d)':'')),
+              el('div',{style:{fontWeight:600}},(snap.ig||0).toLocaleString()),
+              el('div',{style:{fontWeight:600,color:igG===null?'var(--t3)':igG>=0?'var(--gn)':'var(--rd2)'}},igG===null?'first':(igG>=0?'+':'')+igG.toLocaleString()),
+              el('div',{style:{fontWeight:600}},(snap.tt||0).toLocaleString()),
+              el('div',{style:{fontWeight:600,color:ttG===null?'var(--t3)':ttG>=0?'var(--gn)':'var(--rd2)'}},ttG===null?'first':(ttG>=0?'+':'')+ttG.toLocaleString())
+            );
+          })
         )
       );
     }),
@@ -2273,16 +2383,19 @@ const tMoney=()=>{try{
   const mExpCats=Object.entries(mExpMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const mRevCats=Object.entries(mRevMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const maxBar=Math.max(...last6.map(x=>Math.max(x.rev,x.exp)),1);
+  const avgMonthlyBurn=last6.filter(m=>m.exp>0).reduce((s,m)=>s+m.exp,0)/Math.max(last6.filter(m=>m.exp>0).length,1);
+  const runwayMonths=avgMonthlyBurn>0?(+cash||0)/avgMonthlyBurn:null;
   return el('div',null,
 
   // ── Monthly P&L ───────────────────────────────────────────────
   el('div',{className:'card',style:{marginBottom:14}},
     el('div',{className:'ph'},PT('Monthly P&L — '+new Date().toLocaleString('en-AU',{month:'long',year:'numeric'}))),
-    // 3 big numbers
-    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}},
+    // 4 big numbers
+    el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}},
       el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--gn)'}},FMT(mRev)),el('div',{className:'scl'},'Revenue')),
       el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},FMT(mExp)),el('div',{className:'scl'},'Expenses')),
-      el('div',{className:'sc'},el('div',{className:'scv',style:{color:mRev-mExp>=0?'var(--gn)':'var(--rd2)'}},FMT(mRev-mExp)),el('div',{className:'scl'},'Profit'))
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:mRev-mExp>=0?'var(--gn)':'var(--rd2)'}},FMT(mRev-mExp)),el('div',{className:'scl'},'Profit')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:runwayMonths===null?'var(--t3)':runwayMonths<3?'var(--rd2)':runwayMonths<6?'var(--go)':'var(--gn)'}},runwayMonths===null?'—':runwayMonths.toFixed(1)+'mo'),el('div',{className:'scl'},'Runway'))
     ),
     // 6-month bar chart
     el('div',{style:{marginBottom:16}},
@@ -2954,6 +3067,18 @@ const tPlan=()=>{
   const wkDone=[wp.p1done,wp.p2done,wp.p3done].filter(Boolean).length;
   const wkTotal=[wp.p1,wp.p2,wp.p3].filter(Boolean).length;
   return el('div',null,
+
+  // ── Sunday Review Prompt ─────────────────────────────────────
+  DOW===0&&el('div',{className:'card',style:{marginBottom:14,background:'linear-gradient(135deg,#FFFBEB,#FEF3C7)',border:'1.5px solid #FCD34D'}},
+    el('div',{style:{display:'flex',alignItems:'center',gap:12}},
+      el('div',{style:{fontSize:32}},'📋'),
+      el('div',{style:{flex:1}},
+        el('div',{style:{fontWeight:700,fontSize:15,color:'var(--go)',marginBottom:4}},'It\'s Sunday — Weekly Review Time'),
+        el('div',{style:{fontSize:12,color:'var(--t2)',lineHeight:1.5}},'Reflect on your week before you plan the next one. What worked? What didn\'t? What\'s the #1 priority for next week?')
+      ),
+      el('button',{onClick:()=>setTab('review'),style:{padding:'8px 18px',borderRadius:8,border:'none',background:'#D97706',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer',flexShrink:0}},'Open Review →')
+    )
+  ),
 
   // ── Weekly Priorities ────────────────────────────────────────
   el('div',{className:'card'},
