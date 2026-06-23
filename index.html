@@ -549,7 +549,13 @@ const[addR,setAddR]=useState(false);
 const[newR,setNewR]=useState({date:TODAY,dist:'',time:'',type:'easy',notes:''});
 const[mSetup,setMSetup]=useState(false);
 const[mcd,setMcd]=useState({});
-const[wp,setWp]=useState(()=>stg('week-plan-'+WEEK_KEY)||{theme:'',p1:'',p2:'',p3:'',blocks:{}});
+const[wp,setWp]=useState(()=>stg('week-plan-'+WEEK_KEY)||{theme:'',p1:'',p2:'',p3:'',p1done:false,p2done:false,p3done:false,blocks:{}});
+// EOD review — keyed per day
+const EOD_KEY='eod-'+TODAY;
+const[eod,setEod]=useState(()=>stg(EOD_KEY)||{score:'',win:'',improve:'',tomorrow:'',energy:'',saved:false});
+const[eodOpen,setEodOpen]=useState(false);
+// EOD history
+const[eodHistory,setEodHistory]=useState(false);
 const[ps,setPs]=useState(25*60);
 const[pActive,setPActive]=useState(false);
 const[pMode,setPMode]=useState('work');
@@ -982,6 +988,11 @@ const delSku=s=>{const u=skus.filter(x=>x!==s);setSkus(u);sts('tilt-skus',u);};;
 const saveMCfg=()=>{const u={rd:mcd.rd||mCfg.rd,rn:mcd.rn||mCfg.rn,km:+mcd.km||mCfg.km};setMCfg(u);sts('mara-cfg',u);if(mcd.sw||mcd.gw){const b={sw:+mcd.sw||base.sw,gw:+mcd.gw||base.gw};setBase(b);sts('fit-base',b);}setMSetup(false);showN('Training setup saved');};
 const doAddRun=()=>{if(!newR.dist)return;const u=[{id:Date.now()+'',date:newR.date||TODAY,dist:+newR.dist,time:newR.time,type:newR.type,notes:newR.notes},...rlog].slice(0,100);setRlog(u);sts('run-log',u);setNewR({date:TODAY,dist:'',time:'',type:'easy',notes:''});setAddR(false);showN('Run logged — '+newR.dist+'km');};
 const saveWP=(f,v)=>{const u={...wp,[f]:v};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
+const togWP=(f)=>{const u={...wp,[f]:!wp[f]};setWp(u);sts('week-plan-'+WEEK_KEY,u);};
+const saveEod=(f,v)=>{const u={...eod,[f]:v};setEod(u);sts(EOD_KEY,u);};
+const submitEod=()=>{const u={...eod,saved:true,date:TODAY,time:new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})};setEod(u);sts(EOD_KEY,u);setEodOpen(false);showN('EOD review saved ✓');};
+// Read past EOD reviews (last 30 days)
+const pastEods=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);const ds=d.toISOString().split('T')[0];const e=stg('eod-'+ds);return e&&e.saved?{...e,date:ds}:null;}).filter(Boolean);
 const doAddBook=()=>{if(!newBk.title)return;const u=[...books,{id:Date.now()+'',startDate:TODAY,...newBk}];setBooks(u);sts('books',u);setNewBk({title:'',author:'',status:'reading',notes:''});setAddBk(false);};
 const updBook=(id,f,v)=>{const u=books.map(b=>b.id===id?{...b,[f]:v}:b);setBooks(u);sts('books',u);};
 const addLm=m=>{const u={...lm,[TODAY]:(lm[TODAY]||0)+m};setLm(u);sts('lang-mins',u);showN('+'+m+' min language');};
@@ -1300,6 +1311,48 @@ const tHome=()=>{
           el('div',{style:{fontSize:12,color:'var(--t2)',lineHeight:1.4,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}},preview)
         );
       })
+    )
+  ),
+
+  // ── Weekly priorities snapshot ───────────────────────────────
+  (wp.p1||wp.p2||wp.p3)&&el('div',{className:'card',style:{marginBottom:14}},
+    el('div',{className:'ph'},
+      el('div',{className:'pt'},'🎯 This Week\'s Priorities'),
+      el('button',{onClick:()=>{setSection('plan');setTab('plan');},style:{fontSize:11,background:'transparent',border:'1px solid var(--br)',borderRadius:8,padding:'4px 10px',cursor:'pointer',color:'var(--t3)'}}, 'Edit →')
+    ),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:6}},
+      ...[['p1','p1done','var(--rd2)'],['p2','p2done','var(--go)'],['p3','p3done','var(--gn)']].filter(([f])=>wp[f]).map(([f,df,c])=>
+        el('div',{key:f,style:{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--cd)',borderRadius:8}},
+          el('div',{onClick:()=>togWP(df),style:{width:20,height:20,borderRadius:5,border:'2px solid '+(wp[df]?c:'var(--br)'),background:wp[df]?c+'22':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}},
+            wp[df]&&el('span',{style:{fontSize:10,fontWeight:700,color:c}},'✓')
+          ),
+          el('span',{style:{fontSize:13,color:wp[df]?'var(--t3)':'var(--tx)',textDecoration:wp[df]?'line-through':'none',flex:1}},wp[f])
+        )
+      )
+    )
+  ),
+
+  // ── EOD nudge (shows after 3pm or if not done) ───────────────
+  !eod.saved&&el('div',{className:'card',style:{marginBottom:14,background:'linear-gradient(135deg,#1A1A2E,#2D2D44)',border:'1px solid rgba(255,255,255,0.1)'}},
+    el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      el('div',null,
+        el('div',{style:{fontSize:16,marginBottom:4}},'🌙'),
+        el('div',{style:{fontSize:14,fontWeight:700,color:'#E8E4F8',marginBottom:2}},'End of Day Review'),
+        el('div',{style:{fontSize:11,color:'rgba(255,255,255,0.5)'}},'2 min · Track your wins, close the loop')
+      ),
+      el('button',{onClick:()=>setEodOpen(true),style:{padding:'10px 18px',borderRadius:10,border:'none',background:'#D97706',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer',letterSpacing:.5,whiteSpace:'nowrap'}},'Start →')
+    )
+  ),
+  eod.saved&&el('div',{className:'card',style:{marginBottom:14,background:'linear-gradient(135deg,#ECFDF5,#F0FDF4)',border:'1px solid #A7F3D0'}},
+    el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      el('div',{style:{display:'flex',alignItems:'center',gap:12}},
+        el('div',{style:{fontSize:24}},eod.energy?['💀','😴','😐','⚡','🚀'][eod.energy-1]:'✓'),
+        el('div',null,
+          el('div',{style:{fontSize:13,fontWeight:700,color:'var(--gn)'}},eod.score?'Today: '+eod.score+'/10 ✓':'EOD Review done ✓'),
+          eod.win&&el('div',{style:{fontSize:11,color:'var(--t2)',marginTop:2}},'"'+eod.win+'"')
+        )
+      ),
+      el('button',{onClick:()=>setEodOpen(true),style:{fontSize:11,background:'transparent',border:'1px solid var(--gn)',borderRadius:8,padding:'4px 10px',cursor:'pointer',color:'var(--gn)'}}, 'Edit')
     )
   ),
 
@@ -2542,14 +2595,72 @@ const tMoney=()=>{try{return el('div',null,
 );}catch(e){console.error('Money tab error:',e);return el('div',{className:'card',style:{textAlign:'center',padding:40,color:'var(--t3)'}},el('div',{style:{fontSize:20,marginBottom:8}},'⚠️'),el('div',{style:{fontSize:14,marginBottom:4}},'Something went wrong loading the Money tab.'),el('div',{style:{fontSize:12}},e.message||'Check browser console for details.'));}};
 
 // ─── PLAN ──────────────────────────────────────────────────────
-const tPlan=()=>el('div',null,
+const tPlan=()=>{
+  const wkDone=[wp.p1done,wp.p2done,wp.p3done].filter(Boolean).length;
+  const wkTotal=[wp.p1,wp.p2,wp.p3].filter(Boolean).length;
+  return el('div',null,
+
+  // ── Weekly Priorities ────────────────────────────────────────
   el('div',{className:'card'},
-    PT('This Week\'s Priorities'),
-    el('div',{style:{marginBottom:10}},Lbl('Theme / Weekly Intention'),el('input',{className:'ipt',style:{fontSize:14},value:wp.theme,onChange:e=>saveWP('theme',e.target.value),placeholder:'e.g. Ship TILT campaign, hit 50km week'})),
-    ...[['p1','Priority 1 — Highest leverage','var(--rd2)',0],['p2','Priority 2','var(--go)',1],['p3','Priority 3','var(--gn)',2]].map(([f,l,c,i])=>
-      el('div',{key:f,style:{display:'flex',gap:8,alignItems:'center',marginBottom:8}},
-        el('div',{style:{width:22,height:22,borderRadius:4,background:['#FEE2E2','#FEF3C7','#D1FAE5'][i],display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,color:c,flexShrink:0}},i+1),
-        el('input',{className:'ipt',value:wp[f],onChange:e=>saveWP(f,e.target.value),placeholder:l})
+    el('div',{className:'ph'},
+      el('div',null,
+        el('div',{className:'pt'},'🎯 Weekly Priorities'),
+        el('div',{style:{fontSize:11,color:'var(--t3)',marginTop:2}},'Week of '+WEEK_KEY+' · resets Sunday')
+      ),
+      wkTotal>0&&el('div',{style:{display:'flex',alignItems:'center',gap:8}},
+        el('div',{style:{fontSize:13,fontWeight:700,color:wkDone===wkTotal&&wkTotal>0?'var(--gn)':'var(--go)'}},wkDone+'/'+wkTotal+' done'),
+        PB(wkTotal?wkDone/wkTotal*100:0,wkDone===wkTotal&&wkTotal>0?'var(--gn)':'var(--go)')
+      )
+    ),
+    el('div',{style:{marginBottom:14}},
+      Lbl('Theme for the week'),
+      el('input',{className:'ipt',style:{fontSize:14,marginTop:4},value:wp.theme||'',onChange:e=>saveWP('theme',e.target.value),placeholder:'e.g. Land first 3 stockists, hit 60km week, launch content series'})
+    ),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+      ...[['p1','p1done','#1 — Most important','#FEE2E2','var(--rd2)'],['p2','p2done','#2 — High leverage','#FEF3C7','var(--go)'],['p3','p3done','#3 — Complete if possible','#D1FAE5','var(--gn)']].map(([f,df,l,bg,c])=>
+        el('div',{key:f,style:{display:'flex',gap:10,alignItems:'flex-start',background:'var(--cd)',borderRadius:12,padding:'10px 12px'}},
+          el('div',{onClick:()=>togWP(df),style:{width:24,height:24,borderRadius:7,border:'2px solid '+(wp[df]?c:'var(--br)'),background:wp[df]?bg:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0,marginTop:2}},
+            wp[df]&&el('span',{style:{fontSize:12,fontWeight:800,color:c}},'✓')
+          ),
+          el('div',{style:{flex:1}},
+            el('div',{style:{fontSize:10,fontWeight:700,color:c,letterSpacing:1,textTransform:'uppercase',marginBottom:4}},l),
+            el('input',{className:'ipt',value:wp[f]||'',onChange:e=>saveWP(f,e.target.value),placeholder:'What must get done this week?',style:{textDecoration:wp[df]?'line-through':'none',color:wp[df]?'var(--t3)':'var(--tx)'}})
+          )
+        )
+      )
+    )
+  ),
+
+  // ── EOD Review History ───────────────────────────────────────
+  el('div',{className:'card'},
+    el('div',{className:'ph'},
+      el('div',{className:'pt'},'🌙 EOD Review Log'),
+      el('button',{onClick:()=>setEodOpen(true),style:{padding:'6px 14px',borderRadius:99,border:'none',background:'#D97706',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',letterSpacing:.5}},eod.saved?'View Today':'Do Today\'s Review')
+    ),
+    pastEods.length===0&&el('div',{style:{color:'var(--t3)',fontSize:12,textAlign:'center',padding:'16px 0'}},'No EOD reviews yet — tap the 🌙 button each evening to start'),
+    pastEods.length>0&&el('div',{style:{display:'flex',flexDirection:'column',gap:8}},
+      ...pastEods.map(e=>
+        el('div',{key:e.date,style:{background:'var(--cd)',borderRadius:12,padding:'12px 14px'}},
+          el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
+            el('div',{style:{fontSize:12,fontWeight:700,color:'var(--tx)'}},e.date===TODAY?'Today':e.date),
+            el('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+              e.score&&el('div',{style:{fontSize:13,fontWeight:800,color:e.score>=8?'var(--gn)':e.score>=6?'var(--go)':'var(--rd2)',fontFamily:"'Barlow Condensed',sans-serif"}},e.score+'/10'),
+              e.energy&&el('div',{style:{fontSize:16}},['💀','😴','😐','⚡','🚀'][e.energy-1])
+            )
+          ),
+          e.win&&el('div',{style:{marginBottom:4}},
+            el('span',{style:{fontSize:10,fontWeight:700,color:'var(--gn)',textTransform:'uppercase',letterSpacing:.5}},'Win: '),
+            el('span',{style:{fontSize:12,color:'var(--tx)'}},e.win)
+          ),
+          e.improve&&el('div',{style:{marginBottom:4}},
+            el('span',{style:{fontSize:10,fontWeight:700,color:'var(--go)',textTransform:'uppercase',letterSpacing:.5}},'Improve: '),
+            el('span',{style:{fontSize:12,color:'var(--t2)'}},e.improve)
+          ),
+          e.tomorrow&&el('div',null,
+            el('span',{style:{fontSize:10,fontWeight:700,color:'var(--rd2)',textTransform:'uppercase',letterSpacing:.5}},'Tomorrow: '),
+            el('span',{style:{fontSize:12,color:'var(--t2)'}},e.tomorrow)
+          )
+        )
       )
     )
   ),
@@ -2638,7 +2749,7 @@ const tPlan=()=>el('div',null,
       ))
     )
   )
-);
+);};
 
 // ─── LEARN ─────────────────────────────────────────────────────
 const tLearn=()=>el('div',null,
@@ -3559,6 +3670,64 @@ const goSection=sid=>{
 
 return el('div',{className:'layout'},
   notif&&el('div',{className:'notif'},notif),
+  // ── EOD floating button ─────────────────────────────────────
+  el('button',{onClick:()=>setEodOpen(true),title:'End-of-Day Review',style:{position:'fixed',bottom:24,right:24,zIndex:998,width:52,height:52,borderRadius:'50%',background:eod.saved?'var(--gn)':'#D97706',color:'#fff',border:'none',cursor:'pointer',fontSize:22,boxShadow:'0 4px 16px rgba(0,0,0,0.18)',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}},eod.saved?'✓':'🌙'),
+  // ── EOD modal ───────────────────────────────────────────────
+  eodOpen&&el('div',{style:{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center',padding:16},onClick:e=>{if(e.target===e.currentTarget)setEodOpen(false);}},
+    el('div',{style:{background:'var(--sf)',backdropFilter:'blur(24px)',WebkitBackdropFilter:'blur(24px)',border:'1px solid rgba(255,255,255,0.8)',borderRadius:20,padding:24,width:'100%',maxWidth:520,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.25)'}},
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},
+        el('div',null,
+          el('div',{style:{fontSize:10,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},TODAY),
+          el('div',{style:{fontSize:20,fontWeight:700,color:'var(--tx)'}},'🌙 End of Day Review')
+        ),
+        el('button',{onClick:()=>setEodOpen(false),style:{width:32,height:32,borderRadius:8,border:'1px solid var(--br)',background:'var(--cd)',cursor:'pointer',fontSize:16,color:'var(--t3)',display:'flex',alignItems:'center',justifyContent:'center'}},'×')
+      ),
+      // Score
+      el('div',{style:{marginBottom:16}},
+        el('div',{style:{fontSize:12,fontWeight:700,color:'var(--t2)',marginBottom:8}},'How would you rate today? (1–10)'),
+        el('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+          ...[1,2,3,4,5,6,7,8,9,10].map(n=>
+            el('button',{key:n,onClick:()=>saveEod('score',n),style:{width:40,height:40,borderRadius:10,border:'2px solid '+(eod.score===n?'#D97706':'var(--br)'),background:eod.score===n?'#FFFBEB':'var(--cd)',color:eod.score===n?'#92400E':'var(--t2)',fontWeight:700,fontSize:14,cursor:'pointer',transition:'all .15s'}},n)
+          )
+        )
+      ),
+      // Weekly priorities check
+      (wp.p1||wp.p2||wp.p3)&&el('div',{style:{background:'rgba(255,255,255,0.5)',borderRadius:12,padding:12,marginBottom:16}},
+        el('div',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',letterSpacing:1,textTransform:'uppercase',marginBottom:8}},'Weekly Priorities — did you make progress?'),
+        ...[['p1','p1eod'],['p2','p2eod'],['p3','p3eod']].filter(([f])=>wp[f]).map(([f,ef])=>
+          el('div',{key:f,style:{display:'flex',alignItems:'center',gap:10,marginBottom:6}},
+            el('div',{onClick:()=>saveEod(ef,!eod[ef]),style:{width:22,height:22,borderRadius:6,border:'2px solid '+(eod[ef]?'var(--gn)':'var(--br)'),background:eod[ef]?'var(--gn)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}},eod[ef]&&el('span',{style:{color:'#fff',fontSize:10,fontWeight:700}},'✓')),
+            el('span',{style:{fontSize:12,color:eod[ef]?'var(--t3)':'var(--tx)',textDecoration:eod[ef]?'line-through':'none'}},wp[f])
+          )
+        )
+      ),
+      // Questions
+      ...[
+        ['win','⚡ Biggest win today?','e.g. Landed a stockist, hit a PB, shipped a feature…'],
+        ['improve','🔧 What could have gone better?','Be honest — what held you back?'],
+        ['tomorrow','🎯 Top priority for tomorrow?','One thing that will make tomorrow a success'],
+      ].map(([f,label,ph])=>
+        el('div',{key:f,style:{marginBottom:14}},
+          el('div',{style:{fontSize:12,fontWeight:700,color:'var(--t2)',marginBottom:6}},label),
+          el('textarea',{className:'jtxt',rows:2,value:eod[f]||'',onChange:e=>saveEod(f,e.target.value),placeholder:ph,style:{width:'100%',resize:'none'}})
+        )
+      ),
+      // Energy
+      el('div',{style:{marginBottom:20}},
+        el('div',{style:{fontSize:12,fontWeight:700,color:'var(--t2)',marginBottom:8}},'⚡ Energy level at end of day'),
+        el('div',{style:{display:'flex',gap:8}},
+          ...[['💀','Drained'],['😴','Tired'],['😐','Okay'],['⚡','Good'],['🚀','Fired up']].map(([e,l],i)=>
+            el('button',{key:i,onClick:()=>saveEod('energy',i+1),style:{flex:1,padding:'8px 4px',borderRadius:10,border:'2px solid '+(eod.energy===i+1?'#D97706':'var(--br)'),background:eod.energy===i+1?'#FFFBEB':'var(--cd)',cursor:'pointer',textAlign:'center',transition:'all .15s'}},
+              el('div',{style:{fontSize:18}},e),
+              el('div',{style:{fontSize:9,color:'var(--t3)',fontWeight:600,marginTop:2}},l)
+            )
+          )
+        )
+      ),
+      el('button',{onClick:submitEod,style:{width:'100%',padding:'12px',borderRadius:12,border:'none',background:'#D97706',color:'#fff',fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,letterSpacing:2,textTransform:'uppercase',cursor:'pointer',boxShadow:'0 2px 8px rgba(217,119,6,0.3)'}},'Save EOD Review'),
+      eod.saved&&el('div',{style:{marginTop:10,textAlign:'center',fontSize:11,color:'var(--gn)',fontWeight:600}},'✓ Saved at '+(eod.time||''))
+    )
+  ),
   el('div',{className:'sb'},
     el('div',{className:'sb-logo'},'H&S'),
     el('div',{className:'sb-nav'},
