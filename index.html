@@ -551,6 +551,7 @@ const[newS,setNewS]=useState({sku:'Original',cans:'',slabs:'',cat:'purchase',not
 const[sales,setSales]=useState(()=>stg('tilt-sales')||[]);
 const[addSale,setAddSale]=useState(false);
 const[newSale,setNewSale]=useState({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});
+const[editSale,setEditSale]=useState(null);
 // SKU management
 const[skus,setSkus]=useState(()=>stg('tilt-skus')||SKUS);
 const[addSkuMode,setAddSkuMode]=useState(false);
@@ -1156,6 +1157,7 @@ const doAddFin=()=>{if(!newF.amount)return;const u=[...fin,{id:Date.now()+'',dat
 const doStock=dir=>{if(!newS.cans&&!newS.slabs)return;const u=[{id:Date.now()+'',date:TODAY,dir,sku:newS.sku||'All',...newS,cans:+newS.cans||0,slabs:+newS.slabs||0},...slog];setSlog(u);sts('stock-log',u);showN(dir==='in'?'Stock received ✓':'Usage logged ✓');setAddS(null);setNewS({sku:'Original',cans:'',slabs:'',cat:'purchase',note:''});};
 const doAddSale=()=>{if(!newSale.buyer||(!newSale.cans&&!newSale.slabs))return;const cans=(+newSale.cans||0)+(+newSale.slabs||0)*24;const u=[{id:Date.now()+'',date:TODAY,...newSale,cans:+newSale.cans||0,slabs:+newSale.slabs||0,totalCans:cans,price:+newSale.price||0},...sales];setSales(u);sts('tilt-sales',u);// also log as stock-out
 const so=[{id:'so'+Date.now(),date:TODAY,dir:'out',sku:newSale.sku,cans:+newSale.cans||0,slabs:+newSale.slabs||0,cat:'sale',note:'Sale to '+newSale.buyer},...slog];setSlog(so);sts('stock-log',so);showN('Sale recorded — '+cans+' cans to '+newSale.buyer);setNewSale({buyer:'',sku:'Original',cans:'',slabs:'',price:'',note:''});setAddSale(false);awardXP(50);};
+const saveSaleEdit=()=>{if(!editSale)return;const cans=(+editSale.cans||0)+(+editSale.slabs||0)*24;const updated={...editSale,totalCans:cans,cans:+editSale.cans||0,slabs:+editSale.slabs||0,price:+editSale.price||0};const u=sales.map(s=>s.id===updated.id?updated:s);setSales(u);sts('tilt-sales',u);const sl=slog.map(e=>e.id==='so'+updated.id?{...e,cans:+editSale.cans||0,slabs:+editSale.slabs||0,sku:editSale.sku}:e);setSlog(sl);sts('stock-log',sl);setEditSale(null);showN('Sale updated');};
 const delSale=id=>{const sale=sales.find(s=>s.id===id);const u=sales.filter(s=>s.id!==id);setSales(u);sts('tilt-sales',u);if(sale){const sl=slog.filter(e=>e.id!=='so'+id);setSlog(sl);sts('stock-log',sl);}showN('Sale deleted — '+((sale?.totalCans)||0)+' cans restored to stock');};
 const addSku=()=>{if(!newSkuName.trim()||skus.includes(newSkuName.trim()))return;const u=[...skus,newSkuName.trim()];setSkus(u);sts('tilt-skus',u);setNewSkuName('');setAddSkuMode(false);showN('SKU added: '+newSkuName.trim());};
 const delSku=s=>{const u=skus.filter(x=>x!==s);setSkus(u);sts('tilt-skus',u);};;
@@ -1911,8 +1913,8 @@ const tTilt=()=>el('div',null,
     el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}},
       el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--go)'}},curStock.toLocaleString()),el('div',{className:'scl'},'Total Cans')),
       el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--t2)'}},curSlabs),el('div',{className:'scl'},'Slabs')),
-      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'#E1306C'}},totalSold),el('div',{className:'scl'},'Sold')),
-      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},mktgUsed),el('div',{className:'scl'},'Marketing'))
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'#E1306C'}},(totalSold/24).toFixed(1)),el('div',{className:'scl'},'Sold (slabs)')),
+      el('div',{className:'sc'},el('div',{className:'scv',style:{color:'var(--rd2)'}},(mktgUsed/24).toFixed(1)),el('div',{className:'scl'},'Marketing (slabs)'))
     ),
 
     // ── Per-SKU breakdown ───────────────────────────────────────
@@ -1986,17 +1988,36 @@ const tTilt=()=>el('div',null,
         'Sales — '+totalSold+' cans · '+FMT(sales.reduce((s,e)=>s+e.price,0))+' total'
       ),
       el('div',{className:'tbl-x'},
-        el('div',{style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 24px',padding:'4px 6px',fontSize:9,fontWeight:700,letterSpacing:1.2,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:380}},
+        el('div',{style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 44px',padding:'4px 6px',fontSize:9,fontWeight:700,letterSpacing:1.2,color:'var(--t3)',textTransform:'uppercase',borderBottom:'1px solid var(--br)',marginBottom:4,minWidth:380}},
           ['Date','Buyer','SKU','Cans','Price',''].map(h=>el('div',{key:h},h))
         ),
-        ...sales.slice(0,20).map(s=>el('div',{key:s.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 24px',alignItems:'center',borderRadius:6,minWidth:380}},
-          el('span',{style:{fontSize:11,color:'var(--t3)'}},s.date),
-          el('span',{style:{fontSize:12,fontWeight:600,color:'var(--tx)'}},s.buyer),
-          el('span',{style:{fontSize:10,background:'#DBEAFE',color:'#1D4ED8',padding:'2px 6px',borderRadius:99,fontWeight:700,justifySelf:'start'}},s.sku),
-          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--go)'}},s.totalCans),
-          el('span',{style:{fontSize:12,fontWeight:700,color:'var(--gn)'}},s.price?FMT(s.price):'—'),
-          el('button',{onClick:()=>delSale(s.id),style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:13,padding:0,lineHeight:1}},'×')
-        ))
+        ...sales.slice(0,20).map(s=>[
+          el('div',{key:s.id,className:'fin-row',style:{display:'grid',gridTemplateColumns:'75px 1fr 80px 55px 70px 44px',alignItems:'center',borderRadius:6,minWidth:380}},
+            el('span',{style:{fontSize:11,color:'var(--t3)'}},s.date),
+            el('span',{style:{fontSize:12,fontWeight:600,color:'var(--tx)'}},s.buyer),
+            el('span',{style:{fontSize:10,background:'#DBEAFE',color:'#1D4ED8',padding:'2px 6px',borderRadius:99,fontWeight:700,justifySelf:'start'}},s.sku),
+            el('span',{style:{fontSize:12,fontWeight:700,color:'var(--go)'}},s.totalCans),
+            el('span',{style:{fontSize:12,fontWeight:700,color:'var(--gn)'}},s.price?FMT(s.price):'—'),
+            el('div',{style:{display:'flex',gap:4}},
+              el('button',{onClick:()=>setEditSale(editSale?.id===s.id?null:{...s}),style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:11,padding:0,lineHeight:1}},editSale?.id===s.id?'▲':'✏️'),
+              el('button',{onClick:()=>delSale(s.id),style:{background:'transparent',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:13,padding:0,lineHeight:1}},'×')
+            )
+          ),
+          editSale?.id===s.id&&el('div',{key:s.id+'-edit',style:{background:'var(--cd)',border:'1px solid var(--br)',borderRadius:8,padding:12,marginBottom:4}},
+            G2([
+              FR('Buyer',el('input',{className:'ipt',value:editSale.buyer,onChange:e=>setEditSale(p=>({...p,buyer:e.target.value}))})),
+              FR('SKU',el('select',{className:'ipt',value:editSale.sku,onChange:e=>setEditSale(p=>({...p,sku:e.target.value}))},skus.map(sk=>el('option',{key:sk,value:sk},sk)))),
+              FR('Cans',el('input',{className:'ipt',type:'number',value:editSale.cans,onChange:e=>setEditSale(p=>({...p,cans:e.target.value}))})),
+              FR('Slabs (×24)',el('input',{className:'ipt',type:'number',value:editSale.slabs,onChange:e=>setEditSale(p=>({...p,slabs:e.target.value}))})),
+              FR('Price ($)',el('input',{className:'ipt',type:'number',value:editSale.price,onChange:e=>setEditSale(p=>({...p,price:e.target.value}))})),
+              FR('Date',el('input',{className:'ipt',type:'date',value:editSale.date,onChange:e=>setEditSale(p=>({...p,date:e.target.value}))}))
+            ]),
+            el('div',{style:{display:'flex',gap:8,marginTop:8}},
+              Btn('Save',saveSaleEdit,'bg',{padding:'6px 16px'}),
+              Btn('Cancel',()=>setEditSale(null),'',{padding:'6px 16px'})
+            )
+          )
+        ]).flat()
       )
     ),
 
