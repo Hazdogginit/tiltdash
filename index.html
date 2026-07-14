@@ -594,7 +594,7 @@ const[contacts,setContacts]=useState(()=>stg('contacts')||[]);
 const[addC,setAddC]=useState(false);
 const[newC,setNewC]=useState({name:'',role:'',phone:'',email:'',last:TODAY,fu:'',notes:''});
 const[exC,setExC]=useState(null);
-const[sg,setSg]=useState({});
+const[sg,setSg]=useState(()=>stg('score-grid')||{});
 // ── Gamification ──
 const[xpPops,setXpPops]=useState([]);
 const[lvlUpBanner,setLvlUpBanner]=useState(null); // {name,level}
@@ -978,7 +978,8 @@ const toGo=base.gw?Math.max(0,cw-base.gw).toFixed(1):'—';
 const wP=base.sw&&base.gw&&base.sw>base.gw?Math.min(100,(lost/(base.sw-base.gw))*100):0;
 const tDone=tasks.filter(t=>t.done).length;
 const tdXP=dXP(tasks,habits,tf,journal,protocols);
-const totXP=gXP(goals)+tdXP;
+const bonusXP=Object.values(sg).reduce((s,v)=>s+(v||0),0);
+const totXP=gXP(goals)+tdXP+bonusXP;
 const lvl=getLvl(totXP);
 const xpPct=lvl.nx<99999?(totXP-lvl.min)/(lvl.nx-lvl.min)*100:100;
 const score=calcScore(tasks,habits,tf,journal,protocols);
@@ -1235,7 +1236,7 @@ const togFail=(id)=>{const u=failList.map(f=>f.id===id?{...f,done:!f.done}:f);se
 const addCompetitor=()=>{if(!newComp.name)return;const u=[...competitors,{id:Date.now()+'',name:newComp.name,ig:+newComp.ig||0,tt:+newComp.tt||0,snapshots:[]}];setCompetitors(u);sts('competitors',u);setNewComp({name:'',ig:'',tt:''});setAddComp(false);};
 const delComp=id=>{const u=competitors.filter(c=>c.id!==id);setCompetitors(u);sts('competitors',u);};
 // ── Feature 1: Morning Routine handlers ──
-const saveMorning=list=>{setMorning(list);sts('morning-items',list);localStorage.setItem('morning-reset-date',TODAY);
+const saveMorning=list=>{setMorning(list);sts('morning-items',list);
   if(list.length>0&&list.every(m=>m.done)){
     if(morningLast!==TODAY){
       const yest=new Date();yest.setDate(yest.getDate()-1);const yds=yest.toISOString().split('T')[0];
@@ -1816,9 +1817,7 @@ const tTilt=()=>el('div',null,
       el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:4}},
         el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},'Work (min)'),
         el('div',{style:{display:'flex',alignItems:'center',gap:4}},
-          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.max(1,pWorkMins-5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-minus',style:{fontSize:12}})),
-          el('div',{style:{fontSize:20,fontWeight:700,width:36,textAlign:'center',color:'var(--go)'}},pWorkMins),
-          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.min(120,pWorkMins+5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-plus',style:{fontSize:12}}))
+          el('input',{type:'number',min:1,max:180,value:pWorkMins,onChange:e=>{const v=Math.max(1,Math.min(180,+e.target.value||1));setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);},style:{width:60,fontSize:20,fontWeight:700,textAlign:'center',color:'var(--go)',background:'var(--sf)',border:'1.5px solid var(--br)',borderRadius:8,padding:'4px 0'}})
         )
       ),
       el('div',{style:{width:1,background:'var(--br)',alignSelf:'stretch'}}),
@@ -3445,9 +3444,7 @@ const tPlan=()=>{
       el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:4}},
         el('div',{style:{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}},'Work (min)'),
         el('div',{style:{display:'flex',alignItems:'center',gap:4}},
-          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.max(1,pWorkMins-5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-minus',style:{fontSize:12}})),
-          el('div',{style:{fontSize:20,fontWeight:700,width:36,textAlign:'center',color:'var(--go)'}},pWorkMins),
-          el('button',{style:{width:28,height:28,borderRadius:6,border:'1.5px solid var(--br)',background:'var(--sf)',cursor:'pointer',fontSize:16,color:'var(--t2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1},onClick:()=>{const v=Math.min(120,pWorkMins+5);setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);}},el('i',{className:'ti ti-plus',style:{fontSize:12}}))
+          el('input',{type:'number',min:1,max:180,value:pWorkMins,onChange:e=>{const v=Math.max(1,Math.min(180,+e.target.value||1));setPWorkMins(v);sts('pomo-work-mins',v);if(pMode==='work'&&!pActive)setPs(v*60);},style:{width:60,fontSize:20,fontWeight:700,textAlign:'center',color:'var(--go)',background:'var(--sf)',border:'1.5px solid var(--br)',borderRadius:8,padding:'4px 0'}})
         )
       ),
       el('div',{style:{width:1,background:'var(--br)',alignSelf:'stretch'}}),
